@@ -1,0 +1,17 @@
+# Builds the course-mandated A/B/C manifests from the raw RSICD files.
+#   python scripts/prepare_data.py
+defaults:
+  - override hydra/job_logging: none
+  - override hydra/hydra_logging: none
+  - _self_
+
+raw_dir: data/raw
+images_dir: ${raw_dir}/RSICD_images
+captions_json: ${raw_dir}/dataset_rsicd.json
+classes_dir: ${raw_dir}/txtclasses_rsicd
+out_dir: data/splits
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

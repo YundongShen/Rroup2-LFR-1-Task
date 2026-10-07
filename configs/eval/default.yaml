@@ -1,0 +1,11 @@
+# Which split to evaluate on and which tasks to run.
+split: val              # val = held-out part of B (per fold) | test = split C
+confirm_test: false     # must be set true explicitly to touch split C
+batch_size: 128
+num_workers: 4
+tasks:
+  zero_shot:
+    enabled: true
+  retrieval:
+    enabled: true
+    ks: [1, 5, 10]

@@ -1,0 +1,7 @@
+# Split B into one train/val pair.
+manifest_dir: data/splits
+b_split:
+  mode: holdout         # holdout | kfold
+  val_frac: 0.2
+  stratify: true        # stratify by scene class
+  seed: 0

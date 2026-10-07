@@ -1,0 +1,7 @@
+# Course default: single template from the task slides.
+name: course
+templates:
+  - "A satellite image of {}."
+# Optional per-class name overrides (folder name -> prompt text).
+# Unlisted classes use the automatic CamelCase split, e.g. BareLand -> "bare land".
+class_names: {}

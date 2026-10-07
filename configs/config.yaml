@@ -1,0 +1,23 @@
+# Main experiment config. Compose groups on the command line, e.g.
+#   python -m src.run model=vit_b16_laion2b data=kfold5 prompts=ensemble
+defaults:
+  - data: kfold5 # holdout
+  - model: vit_l14_laion2b # vit_b32_laion2b, vit_b16_laion2b
+  - prompts: course
+  - eval: default
+  - method: zeroshot
+  - train: default
+  - _self_
+
+exp_name: ${method.name}_${model.name}
+seed: 0
+device: mps            # auto | cuda | mps | cpu
+
+hydra:
+  run:
+    dir: runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: runs/multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}_${exp_name}
+  job:
+    chdir: false

@@ -1,0 +1,10 @@
+# Prompt ensembling: class embedding = mean over templates.
+name: ensemble
+templates: # templates referred from the paper in remote sensing domain.
+  - "A satellite image of {}."
+  - "an aerial image of {}."
+  - "a remote sensing image of {}."
+  - "a satellite photo of a {}."
+  - "an aerial photograph of a {}."
+  - "a top-down satellite view of {}."
+class_names: {}

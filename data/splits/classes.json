@@ -1,0 +1,126 @@
+[
+ {
+  "idx": 0,
+  "name": "Airport"
+ },
+ {
+  "idx": 1,
+  "name": "BareLand"
+ },
+ {
+  "idx": 2,
+  "name": "BaseballField"
+ },
+ {
+  "idx": 3,
+  "name": "Beach"
+ },
+ {
+  "idx": 4,
+  "name": "Bridge"
+ },
+ {
+  "idx": 5,
+  "name": "Center"
+ },
+ {
+  "idx": 6,
+  "name": "Church"
+ },
+ {
+  "idx": 7,
+  "name": "Commercial"
+ },
+ {
+  "idx": 8,
+  "name": "DenseResidential"
+ },
+ {
+  "idx": 9,
+  "name": "Desert"
+ },
+ {
+  "idx": 10,
+  "name": "Farmland"
+ },
+ {
+  "idx": 11,
+  "name": "Forest"
+ },
+ {
+  "idx": 12,
+  "name": "Industrial"
+ },
+ {
+  "idx": 13,
+  "name": "Meadow"
+ },
+ {
+  "idx": 14,
+  "name": "MediumResidential"
+ },
+ {
+  "idx": 15,
+  "name": "Mountain"
+ },
+ {
+  "idx": 16,
+  "name": "Park"
+ },
+ {
+  "idx": 17,
+  "name": "Parking"
+ },
+ {
+  "idx": 18,
+  "name": "Playground"
+ },
+ {
+  "idx": 19,
+  "name": "Pond"
+ },
+ {
+  "idx": 20,
+  "name": "Port"
+ },
+ {
+  "idx": 21,
+  "name": "RailwayStation"
+ },
+ {
+  "idx": 22,
+  "name": "Resort"
+ },
+ {
+  "idx": 23,
+  "name": "River"
+ },
+ {
+  "idx": 24,
+  "name": "School"
+ },
+ {
+  "idx": 25,
+  "name": "SparseResidential"
+ },
+ {
+  "idx": 26,
+  "name": "Square"
+ },
+ {
+  "idx": 27,
+  "name": "Stadium"
+ },
+ {
+  "idx": 28,
+  "name": "StorageTanks"
+ },
+ {
+  "idx": 29,
+  "name": "Viaduct"
+ },
+ {
+  "idx": 30,
+  "name": "playfields"
+ }
+]

@@ -1,0 +1,4 @@
+name: vit_l14_laion2b
+arch: ViT-L-14
+pretrained: laion2b_s32b_b82k
+precision: fp32    # fp32 | fp16 | bf16 | amp

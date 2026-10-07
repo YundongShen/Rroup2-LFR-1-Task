@@ -1,0 +1,5 @@
+data/raw/
+__pycache__/
+*.pt
+runs/
+.DS_Store

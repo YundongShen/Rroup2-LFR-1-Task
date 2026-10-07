@@ -1,0 +1,8 @@
+# Training hyperparameters, not for zero-shot evaluation.
+epochs: 10
+batch_size: 64
+lr: 1.0e-5
+weight_decay: 0.1
+warmup_steps: 100
+trainable: all          # e.g. all | visual | text | last_n_blocks | lora (to be implemented)
+select_metric: mR       # B-val metric for checkpoint selection (not used for zero-shot evaluation).
