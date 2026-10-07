@@ -37,7 +37,6 @@ python -m src.run                                        # defaults: zero-shot, 
 python -m src.run model=vit_l14_openai prompts=ensemble  # swap model / prompt set
 python -m src.run data=kfold5                            # 5-fold over B, reports mean±std
 python -m src.run data.b_split.val_frac=0.3 data.b_split.seed=1
-python -m src.run -m model=vit_b32_openai,vit_b32_laion2b,vit_b16_laion2b   # sweep
 python scripts/collect_results.py [--split val] [--out results.md]         # table of all runs
 ```
 
