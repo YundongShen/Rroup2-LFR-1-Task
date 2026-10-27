@@ -34,6 +34,8 @@ def load_test(manifest_dir):
 def b_folds(manifest_dir, b_split):
     """Divide split B into [(train_df, val_df), ...] according to the `data.b_split` config."""
     df = pd.read_csv(os.path.join(manifest_dir, "B_labeled.csv"))
+    if b_split.mode == "all":  # A-only methods: nothing from B is trained on, evaluate on all of B
+        return [(df.iloc[:0].reset_index(drop=True), df)]
     y = df["label"].values if b_split.stratify else None
     if b_split.mode == "holdout":
         tr, va = train_test_split(df.index.values, test_size=b_split.val_frac,

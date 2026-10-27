@@ -1,0 +1,6 @@
+# A-only methods: B is never trained on, every run is evaluated on all of B.
+manifest_dir: data/splits
+b_split:
+  mode: all
+  stratify: false
+  seed: 0

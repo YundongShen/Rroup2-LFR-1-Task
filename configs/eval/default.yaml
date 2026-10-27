@@ -9,3 +9,5 @@ tasks:
   retrieval:
     enabled: true
     ks: [1, 5, 10]
+  rotation:             # all 8 rotations/flips of the eval images + orbit-averaged TTA (8x image encoding)
+    enabled: false
