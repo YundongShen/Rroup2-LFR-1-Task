@@ -1,0 +1,11 @@
+# Training on split A only (A-only milestone).
+epochs: 5
+batch_size: 128
+lr: 1.0e-5
+weight_decay: 0.1
+warmup_steps: 50
+trainable: visual       # visual | ln | lastN; the text tower is always frozen
+max_images: null        # subsample A for quick pilots
+num_workers: 12
+save_model: false       # save the adapted image tower to <run>/fold0/visual.pt
+select_metric: none     # B is the evaluation set in this phase: no checkpoint selection

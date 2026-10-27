@@ -1,0 +1,11 @@
+# ROSE (A-only self-training), see src/methods/rose.py. Use with data=allb train=aonly.
+name: rose
+orbit: true            # D4 orbit-averaged pseudo-labels + randomly rotated/flipped student views
+labels: sinkhorn       # sinkhorn (equipartitioned assignment) | argmax (plain zero-shot prediction)
+soft_labels: false     # true: train on the soft distribution (collapses with refresh, see notes)
+eps: 0.02              # Sinkhorn entropic temperature on cosine scores
+min_conf: 0.0          # ignore samples whose pseudo-label confidence is below this
+refresh: true          # relabel A with the current model every epoch (false: zero-shot labels throughout)
+anchor_weight: 1.0     # lambda of the relational anchor (0 disables it)
+anchor_temp: 0.1
+track_val: true        # log B metrics every epoch (learning curves only, no checkpoint selection)

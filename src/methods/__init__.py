@@ -10,9 +10,10 @@ Interface (implement in src/methods/<name>.py and register below):
 
 `b_val` may be used for checkpoint selection (cfg.train.select_metric); split C is never passed in.
 """
+from src.methods.rose import ROSE
 from src.methods.zeroshot import ZeroShot
 
-METHODS = {"zeroshot": ZeroShot}
+METHODS = {"zeroshot": ZeroShot, "rose": ROSE}
 
 
 def build_method(cfg):
