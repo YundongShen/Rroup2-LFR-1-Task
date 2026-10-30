@@ -1,0 +1,7 @@
+torch
+torchvision
+open_clip_torch
+Pillow
+matplotlib
+jupyterlab
+-e ./experiments/stable-worldmodel
