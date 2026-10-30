@@ -1,11 +1,13 @@
 # Rroup2-LFR-1-Task
 
-Semi-supervised CLIP fine-tuning on RSICD (WASP LFR Module 1).
+Semi-supervised CLIP adaption on RSICD. The final results are evaluated across three tasks: classificaton, image to text retrieval and text to image rettrieval. Both retriecal tasks performance are reported as recall at top 5.
+
+## Usage of data splits
+Through the whole pipeline, the usage of data follows the following protocol: 1. only images from split A are used; 2. images and caption pairs from split B are used, but the class labels are never used. 3. images, captions and class labels in split C are only used for the final evaluation, othervised they are never used in the purpose of training, model and hyperparameter selection.
 
 ## Results
 
-Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B/32 (LAION-2B),
-mean ± std over 5 seeds. Zero-shot is deterministic, so it has no std.
+Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B/32 (LAION-2B), reported in form of mean ± std over 5 seeds (0, 1, 2, 3, 4). Zero-shot is deterministic, so it has no std.
 
 | Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
 | --------------- | :----------------: | :--------------: | :--------------: |
@@ -13,8 +15,7 @@ mean ± std over 5 seeds. Zero-shot is deterministic, so it has no std.
 | Supervised      | 73.82 ± 0.27       | 20.22 ± 0.62     | 21.62 ± 0.25     |
 | Semi-supervised | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     |
 
-Supervised trains the adapter on B with the contrastive loss only. Semi-supervised adds the
-pseudo-caption loss on A.
+Supervised trains the adapter on B with the contrastive loss only. Semi-supervised adds the pseudo-caption loss on A.
 
 ## Method
 
@@ -81,7 +82,10 @@ ramps up linearly from 0 to 1 over the first 20 % of training.
 Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean ± std over
 3 seeds. mean R@1 is the average of the two retrieval directions and is the selection metric.
 
-**Coverage** (top-$k$ = 3)
+
+
+**Coverage** (top-K = 3)
+<div align="center">
 
 | coverage | mean R@1     | Image → Text R@5 | Text → Image R@5 |
 | :------: | :----------: | :--------------: | :--------------: |
@@ -90,7 +94,12 @@ Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean 
 | 0.7      | 21.48 ± 0.21 | 53.27 ± 3.01     | 64.54 ± 2.96     |
 | 0.9      | 22.86 ± 0.41 | 51.60 ± 2.91     | 65.75 ± 2.59     |
 
-**Top-$k$** (coverage = 0.5)
+</div>
+
+
+
+**Top-K** (coverage = 0.5)
+<div align="center">
 
 | top-$k$ | mean R@1     | Image → Text R@5 | Text → Image R@5 |
 | :-----: | :----------: | :--------------: | :--------------: |
@@ -98,4 +107,6 @@ Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean 
 | 3       | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
 | 5       | 22.42 ± 0.60 | 50.23 ± 2.33     | 65.33 ± 3.25     |
 
-The final configuration uses coverage = 0.5 and top-$k$ = 3.
+</div>
+
+The final configuration uses coverage = 0.5 and top-K = 3.
