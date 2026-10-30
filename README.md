@@ -2,66 +2,100 @@
 
 Semi-supervised CLIP fine-tuning on RSICD (WASP LFR Module 1).
 
-## Setup
+## Results
 
-```bash
-conda create -n lfr-clip python=3.11 && conda activate lfr-clip
-pip install -r requirements.txt
-```
+Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B/32 (LAION-2B),
+mean ± std over 5 seeds. Zero-shot is deterministic, so it has no std.
 
-Raw data (from [RSICD_optimal](https://github.com/201528014227051/RSICD_optimal)) goes into `data/raw/`:
-`RSICD_images/`, `dataset_rsicd.json`, `txtclasses_rsicd/`.
+| Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
+| --------------- | :----------------: | :--------------: | :--------------: |
+| Zero-shot       | 63.76              | 17.84            | 21.23            |
+| Supervised      | 73.82 ± 0.27       | 20.22 ± 0.62     | 21.62 ± 0.25     |
+| Semi-supervised | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     |
 
-```bash
-python scripts/prepare_data.py       # -> data/splits/{A_unlabeled,B_labeled,C_test}.csv, classes.json
-python scripts/download_weights.py   # optional: pre-cache OpenCLIP weights
-```
+Supervised trains the adapter on B with the contrastive loss only. Semi-supervised adds the
+pseudo-caption loss on A.
 
+## Method
 
-| Split | Manifest          | Content                   | Use                                                  |
-| ----- | ----------------- | ------------------------- | ---------------------------------------------------- |
-| A     | `A_unlabeled.csv` | image paths only          | unlabeled training images                            |
-| B     | `B_labeled.csv`   | images, class, 5 captions | divided per run into B-train / B-val (`data` config) |
-| C     | `C_test.csv`      | images, class, 5 captions | final evaluation only (locked, see below)            |
+CLIP stays frozen. A residual adapter on the image side is the only trained module:
 
+$$
+\tilde{z} = z + \alpha\, h(z), \qquad \alpha = 0.2
+$$
 
+where $z$ is the frozen CLIP image feature and $h$ a small MLP. The training objective is
 
+$$
+\mathcal{L} = \mathcal{L}_{\mathrm{con}} + \lambda_{\mathrm{pcap}}\, \mathcal{L}_{\mathrm{pcap}}
+$$
 
-## Running experiments
+**Contrastive loss** ($\mathcal{L}_{\mathrm{con}}$, Split B). Standard symmetric InfoNCE between
+the adapted image features and the CLIP text features of their captions. For a batch of $N$
+(image, caption) pairs with logits $\ell_{ij} = s \cos(\tilde{z}_i, t_j)$ and the CLIP
+temperature $s$,
 
-All settings live in `configs/` (Hydra-style). Each run writes to `runs/<exp_name>/<timestamp>/`
-(`.hydra/config.yaml`, `splits/` snapshot of the B division, `metrics.json`).
+$$
+\mathcal{L}_{\mathrm{con}} = -\frac{1}{2N} \sum_{i=1}^{N} \left[ \log \frac{e^{\ell_{ii}}}{\sum_{j} e^{\ell_{ij}}} + \log \frac{e^{\ell_{ii}}}{\sum_{j} e^{\ell_{ji}}} \right]
+$$
 
-```bash
-python -m src.run                                        # defaults: zero-shot, ViT-B-32 laion2b, holdout
-python -m src.run model=vit_l14_openai prompts=ensemble  # swap model / prompt set
-python -m src.run data=kfold5                            # 5-fold over B, reports mean±std
-python -m src.run data.b_split.val_frac=0.3 data.b_split.seed=1
-python scripts/collect_results.py [--split val] [--out results.md]         # table of all runs
-```
+Captions of the same image are masked out of each other's negatives.
 
+**Pseudo-caption loss** ($\mathcal{L}_{\mathrm{pcap}}$, Split A). Split A has no captions, so
+every A image borrows captions from B. All B captions form a caption bank. For an A image $u$
+and a bank caption $j$, an EMA teacher of the adapter (never the student) computes two scores:
 
-| Group     | Options                                                              | Controls                                                             |
-| --------- | -------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `data`    | `holdout`, `kfold5`                                                  | B-train/B-val division: `mode`, `val_frac` / `k`, `stratify`, `seed` |
-| `model`   | `vit_{b32,b16,l14}_{openai,laion2b,datacomp}`, `vit_{b16,l14}_dfn2b` | OpenCLIP `arch`, `pretrained`, `precision`                           |
-| `prompts` | `course`, `ensemble`                                                 | zero-shot `templates` and `class_names` overrides                    |
-| `eval`    | `default`                                                            | `split` (val/test), tasks on/off, retrieval `ks`                     |
-| `method`  | `zeroshot`                                                           | adaptation method (registry in `src/methods/`)                       |
-| `train`   | `default`                                                            | training hyperparameters (for upcoming methods)                      |
+$$
+S_{\mathrm{IT}}(u, j) = \cos(z_u, t_j), \qquad S_{\mathrm{II}}(u, j) = \max_{i \in \mathrm{src}(j)} \cos(z_u, z_i)
+$$
 
+where $\mathrm{src}(j)$ is the set of B images that caption $j$ belongs to. Both are z-scored
+per image over the bank and fused:
 
-New model: add `configs/model/<name>.yaml` with any pair from `open_clip.list_pretrained()`.
-New method: implement the interface in `src/methods/__init__.py`, register it, add `configs/method/<name>.yaml`.
+$$
+R(u, j) = \lambda\, \mathrm{z}(S_{\mathrm{IT}}) + (1 - \lambda)\, \mathrm{z}(S_{\mathrm{II}}), \qquad \lambda = 0.2
+$$
 
-### Split C lock
+The image-to-image path dominates because CLIP's image-image similarity on RSICD is far more
+reliable than its image-text similarity.
 
-`eval.split=test` refuses to run unless `eval.confirm_test=true` is also given; every test access is
-appended to `runs/test_access.log`. With k folds, each fold's model is evaluated on C and mean±std is
-reported (a non-training method is evaluated once).
+The top-$k$ captions by $R$ are the candidates $\mathcal{N}_u$ for $u$, weighted by
 
-## Evaluation
+$$
+w_{uj} = \frac{e^{R(u, j)/\tau}}{\sum_{j' \in \mathcal{N}_u} e^{R(u, j')/\tau}}, \qquad \tau = 0.1
+$$
 
-- **Zero-shot classification** (31 classes): `zs_acc`, `zs_mean_per_class_acc`; class embedding is the mean over templates.
-- **Retrieval**: `i2t_R@k` (hit if any of the image's 5 captions is in top-k), `t2i_R@k`, `mR` = mean of all R@k.
+Only the `coverage` fraction of A images with the highest $\max_j R(u, j)$ is accepted in an
+epoch, so low-confidence images contribute nothing. On the accepted images the student
+minimizes a soft cross-entropy over the whole bank:
 
+$$
+\mathcal{L}_{\mathrm{pcap}} = -\sum_{j \in \mathcal{N}_u} w_{uj}\, \log \frac{e^{\,s \cos(\tilde{z}_u, t_j)}}{\sum_{j'} e^{\,s \cos(\tilde{z}_u, t_{j'})}}
+$$
+
+Candidates and weights are recomputed by the teacher every epoch, and $\lambda_{\mathrm{pcap}}$
+ramps up linearly from 0 to 1 over the first 20 % of training.
+
+## Parameter sweeps
+
+Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean ± std over
+3 seeds. mean R@1 is the average of the two retrieval directions and is the selection metric.
+
+**Coverage** (top-$k$ = 3)
+
+| coverage | mean R@1     | Image → Text R@5 | Text → Image R@5 |
+| :------: | :----------: | :--------------: | :--------------: |
+| 0.2      | 20.82 ± 0.31 | 51.75 ± 1.51     | 64.51 ± 1.06     |
+| 0.5      | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
+| 0.7      | 21.48 ± 0.21 | 53.27 ± 3.01     | 64.54 ± 2.96     |
+| 0.9      | 22.86 ± 0.41 | 51.60 ± 2.91     | 65.75 ± 2.59     |
+
+**Top-$k$** (coverage = 0.5)
+
+| top-$k$ | mean R@1     | Image → Text R@5 | Text → Image R@5 |
+| :-----: | :----------: | :--------------: | :--------------: |
+| 1       | 21.32 ± 0.47 | 51.75 ± 1.14     | 63.74 ± 1.37     |
+| 3       | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
+| 5       | 22.42 ± 0.60 | 50.23 ± 2.33     | 65.33 ± 3.25     |
+
+The final configuration uses coverage = 0.5 and top-$k$ = 3.
