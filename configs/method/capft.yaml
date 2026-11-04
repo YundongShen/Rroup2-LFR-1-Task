@@ -1,0 +1,7 @@
+# Contrastive caption fine-tuning with real and/or VLM captions, see src/methods/capft.py.
+name: capft
+b_source: real          # real | real1 | vlm
+b_captions: data/vlm_captions/B_v2_n1.jsonl
+a_source: none          # none | vlm
+a_captions: data/vlm_captions/A_v2_n1.jsonl
+a_weight: 1.0

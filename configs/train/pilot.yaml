@@ -1,0 +1,9 @@
+# Short full fine-tune for the B-only caption pilot (~875 B-train images per fold).
+epochs: 10
+batch_size: 64
+lr: 1.0e-5
+weight_decay: 0.1
+warmup_steps: 20
+trainable: all
+num_workers: 4
+select_metric: none     # fixed epochs; the held-out fold is evaluation only
