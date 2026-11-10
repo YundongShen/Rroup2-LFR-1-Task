@@ -34,10 +34,10 @@
   同时报告 mean R@1。已写入 TASK.md【待填写】和 `docs/bridge_protocol.md` 第 1 节。阶段 1、2、4 按原文执行。
 - GPU 预算：未定总额，每个训练作业控制在 2 小时以内。
 - 其余由我处理：`scripts/slurm/` 从本地 exclude 移除并纳入版本控制；`run.sbatch` 加
-  `HF_HUB_OFFLINE=1`（离线复跑零样本验证中，作业 5123960）。
+  `HF_HUB_OFFLINE=1`（作业 5123960 验证：无网络请求，零样本结果与第一次逐位一致）。
 
-## 待用户处理
-- 推送：origin 为 HTTPS，登录节点 shell 无 GitHub 凭据，提交暂只在本地，需用户推送或配置认证。
+## 推送
+- 不由我推送：所有提交留在本地，等整个方案完成后由用户统一 push。
 
 ## 下一步
 阶段 1：实现方法二（`method=semi`，含 `pcap.enabled` 开关），先预缓存特征，再做小规模试运行。
