@@ -3,14 +3,14 @@
 你在仓库 Rroup2-LFR-1-Task 的分支 `shipeng/bridge` 上工作（已从 main 建好；`scripts/diagnose_bias.py` 已放入）。这是一个课程作业：在标签稀缺的条件下，把 CLIP 适配到遥感数据集 RSICD。请严格按阶段推进，每个阶段结束时停下来向我汇报，得到确认后再继续。进度随时记录在 `docs/PROGRESS.md`（见第九节）。
 
 ## 【待填写】
-- B 的类别标签能否用于留出 fold 的验证与超参数选择（不用于训练）：**是**。B 的类别标签只能在留出 fold 上用于评估、诊断与超参数选择，绝不作为训练信号（理由见 `docs/bridge_protocol.md` 第 1 节）。凡是以标签指标做选择的地方，都同时报告 mean R@1。
-- 计算资源：Slurm 集群，账户 `naiss2026-1-47-gpu`，分区 `gpu`，每个作业 1 块 GPU；本项目可用的 GPU 小时预算：未定总额，每个训练作业控制在 2 小时以内。
+- B 的类别标签能否用于留出 fold 的验证与超参数选择（不用于训练）：**是**。课程幻灯片只把 B 列为 images + captions，未提及 B 的类别标签；我们将其解读为可用于留出 fold 上的评估、诊断与选参，绝不作为训练信号。该解读须写入 `docs/bridge_protocol.md` 并在报告中说明；每次按分类准确率做选择时，同时报告 mean R@1。
+- 计算资源：Slurm 集群，账户 `naiss2026-1-47-gpu`，分区 `gpu`，每个作业 1 块 GPU；本项目可用的 GPU 小时预算：______
 
 ## 一、背景与规则
 
 **数据规则（必须严格遵守）：**
 - Split A（8,734 张）：只能使用图像。禁止读取 A 的 caption、类别标签，以及文件名（文件名中含有类名，如 `airport_1.jpg`）。
-- Split B（1,094 张）：图像与 5 条 caption 可用于训练；类别标签不得用于训练，能否用于验证见待填写项。
+- Split B（1,094 张）：图像与 5 条 caption 可用于训练；类别标签不得用于训练，只能用于留出 fold 上的评估、诊断与选参（见待填写项）。
 - Split C（1,093 张）：只用于最终评估，不得用于训练、模型选择或超参数选择。仓库已有 C 锁（`eval.split=test` 需要 `eval.confirm_test=true`，每次访问都记入 `runs/test_access.log`），不得绕过。
 - caption bank 只能由当前 fold 的 **B 训练部分**构成，不得包含留出部分的 caption。
 
@@ -18,12 +18,13 @@
 - `configs/config.yaml` 的默认值是 `model: vit_l14_laion2b` 和 `device: mps`。每次运行都必须显式指定 `model=vit_b32_laion2b device=cuda`。
 - 评估函数 `src/evaluate.py` 直接调用 `model.encode_image`，所以训练好的 adapter 必须包装进 `model.encode_image`，评估时才会生效。
 - 新方法要按 `src/methods/__init__.py` 中的接口实现并注册。
+
 **集群环境（详见 CLAUDE.md 的 Running 部分）：**
-- 你运行在登录节点上，不得在登录节点运行 GPU 任务。所有 GPU 工作都通过 `sbatch scripts/slurm/run.sbatch <命令>` 提交，在仓库根目录执行。
+- 你运行在登录节点上，不得在登录节点运行 GPU 任务。所有 GPU 工作都通过 `sbatch scripts/slurm/run.sbatch <命令>` 提交，在仓库根目录执行。登录节点是 x86_64，镜像是 arm64，镜像只能在计算节点上运行；短的检查用阻塞式 `srun`（见 CLAUDE.md）。
 - Python 环境是 Apptainer 镜像 `/nobackup/proj/disk/cvls/personal/shipengl/rsicd/rsicd.sif`（定义文件 `containers/rsicd.def`）。需要新的 Python 包时，不要在容器外 pip 安装；修改定义文件并告诉我，由我重建镜像。
 - 模型权重缓存在 `HF_HOME=/nobackup/proj/disk/cvls/personal/shipengl/rsicd/hf_cache`，已由我预先下载。计算节点可能无法联网，不要依赖运行时下载。
-- 写给集群的脚本、作业数组与资源设置都提交到 `scripts/slurm/`，使实验可以被他人重跑。
-- `.gitignore` 已排除 `data/raw/`、`runs/`、`*.pt`，不要试图提交这些内容。
+- 仓库与队友共用，必须保持干净。集群相关文件（`scripts/slurm/`、`containers/`、镜像、日志）只保留在本地，已通过 `.git/info/exclude` 忽略，不得提交；你新写的作业脚本也放在 `scripts/slurm/` 下。不得修改共享的 `.gitignore`，本地忽略规则写进 `.git/info/exclude`。`CLAUDE.md`、`docs/TASK.md`、`docs/PROGRESS.md` 只提交到 `shipeng/bridge`。
+- 共享的 `.gitignore` 已排除 `data/raw/`、`runs/`、`*.pt`，不要试图提交这些内容。
 - 分支 `yundong/a-only` 上的 `src/ops.py` 有 Sinkhorn 实现（可用 `git show origin/yundong/a-only:src/ops.py` 查看），`docs/a_only_rose.md` 记录了 ROSE 的结论：零样本 CLIP 有严重类别偏置（从不预测 center，过度预测 stadium）；均衡分配带来 +6.9 个点；软标签加每轮重标注会塌缩。不要合并该分支。
 
 **研究问题：** README 中方法二相对方法一，分类只提高 0.91 个点。原因是 caption 监督中的类别信息没有转化为分类能力，还是类别偏置没有被纠正，或是近义类混淆？针对诊断结果提出并验证改进方法。
@@ -91,7 +92,7 @@
 
 **每个 epoch 开始时**（在 teacher 完成伪 caption 分配之后）
 1. 对**全部** A 图像计算 $r_{uc}=\sum_j q_{uj}a_{jc}$，$q_{uj}$ 为方法二的 top-3 caption 权重。
-2. 在**全部** A 图像上做非平衡 Sinkhorn：输入为 $\log r / \varepsilon_b$；每行和为 1；类别总量每轮按 $Q \mathrel{*}= (\pi / \text{当前类别总量})^{\kappa}$ 部分拉向 $\pi$。$\kappa=1$ 为完全均衡，$\kappa=0$ 为不均衡。
+2. 在**全部** A 图像（共 $N$ 张）上做非平衡 Sinkhorn（缩放向量形式）：令 $K_{uc}=r_{uc}^{1/\varepsilon_b}$，$\beta=\mathbf 1$，迭代至收敛：$a_u = 1/\sum_c K_{uc}\beta_c$（每行和严格为 1），$\beta_c = \big(N\pi_c / \sum_u a_u K_{uc}\big)^{\kappa}$（类别总量向 $N\pi_c$ 部分靠拢）；最终 $Q_{uc}=a_uK_{uc}\beta_c$。$\kappa=1$ 为完全均衡，$\kappa=0$ 为不均衡。注意 $\kappa$ 作用在每轮重新计算的整个缩放向量 $\beta$ 上，不能对 $Q$ 逐轮累乘 $(\pi/\text{当前总量})^{\kappa}$：那样做对任何 $\kappa>0$ 都会收敛到完全均衡，$\kappa$ 就失去了作用。单元测试须验证：$\kappa=0$ 时 $Q$ 等于逐行归一化的 $r^{1/\varepsilon_b}$；$\kappa=1$ 时列和等于 $N\pi$；$\kappa=0.5$ 时列和介于两者之间。
 3. 硬标签 $\hat y_u = \arg\max_c Q_{uc}$。
 4. 只对方法二已保留的图像 $\mathcal U_{sel}$ 计算损失。
 5. 记录：$r$ 的平均熵、伪标签的类别直方图、与上一个 epoch 相比改变的标签比例。
@@ -135,7 +136,7 @@
 ## 九、工作规则
 
 - 维护 `docs/PROGRESS.md`：当前所处阶段、已完成的事项、关键数字、待我决定的问题、下一步。每完成一个步骤就更新并提交。新会话开始时先读它。
-- 小步提交，每个提交只做一件事，提交信息写清楚。只推送到 `shipeng/bridge`，不得修改其他分支。
+- 小步提交，每个提交只做一件事，提交信息写清楚。只推送到 `shipeng/bridge`，不得修改其他分支。只提交方法代码、Python 分析脚本、测试、结果文档，以及 `CLAUDE.md`、`docs/` 下的文件。
 - 新代码先在小规模数据上跑通（可用一个短时限的作业，如 `-t 00:20:00`），再进行完整实验。提交前估算 GPU 小时，单次提交合计超过 10 GPU 小时须先问我。
 - 以下情况必须停下来问我：图像缺失；复现未达验收标准；数据使用规则不明确；诊断结论与预期矛盾；任何需要访问 C 的操作；需要偏离本文档的设计。
 - 不得为了让结果好看而修改判据、网格或选参规则。负面结果同样如实记录。
