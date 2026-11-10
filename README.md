@@ -1,112 +1,112 @@
-# Rroup2-LFR-1-Task
+# Balanced Caption-to-Class Bridging
 
-Semi-supervised CLIP adaption on RSICD. The final results are evaluated across three tasks: classificaton, image to text retrieval and text to image rettrieval. Both retriecal tasks performance are reported as recall at top 5.
+Branch `shipeng/bridge` · **Work in progress**: result tables are placeholders.
 
-## Usage of data splits
-Through the whole pipeline, the usage of data follows the following protocol: 1. only images from split A are used; 2. images and caption pairs from split B are used, but the class labels are never used. 3. images, captions and class labels in split C are only used for the final evaluation, othervised they are never used in the purpose of training, model and hyperparameter selection.
+## 1. Motivation
 
-## Results
+Baselines from the `main` README (frozen OpenCLIP ViT-B/32 `laion2b_s34b_b79k` + image-side adapter):
 
-Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B/32 (LAION-2B), reported in form of mean ± std over 5 seeds (0, 1, 2, 3, 4). Zero-shot is deterministic, so it has no std.
+| Method | Cls. acc | I→T R@5 | T→I R@5 |
+| --- | --- | --- | --- |
+| Zero-shot CLIP | 63.76 | 17.84 | 21.23 |
+| Supervised (B captions) | 73.82 ± 0.27 | 20.22 ± 0.62 | 21.62 ± 0.25 |
+| Semi-supervised (+ A pseudo-captions) | 74.73 ± 0.25 | 22.71 ± 0.56 | 22.28 ± 0.33 |
 
-| Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
-| --------------- | :----------------: | :--------------: | :--------------: |
-| Zero-shot       | 63.76              | 17.84            | 21.23            |
-| Supervised      | 73.82 ± 0.27       | 20.22 ± 0.62     | 21.62 ± 0.25     |
-| Semi-supervised | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     |
+Pseudo-captions on A add ~2.5 points of I→T R@5 but only 0.9 points of classification. Semi-supervised trains *which captions an image matches*, never *which class prompt it matches*, although the latter is how classification is scored. Three candidate explanations:
 
-Supervised trains the adapter on B with the contrastive loss only. Semi-supervised adds the pseudo-caption loss on A.
+- **Conversion gap:** pseudo-captions carry class evidence that is never aggregated into the image–class-prompt relation.
+- **Class bias:** ROSE (`yundong/a-only`) found zero-shot CLIP never predicts some classes (center) and over-predicts others (stadium); caption alignment does not fix this.
+- **Near-synonyms:** errors concentrate on classes with near-identical names (playfields / stadium / playground).
 
-## Method
+We test these first (§4.1), then address the first two with one added loss.
 
-CLIP stays frozen. A residual adapter on the image side is the only trained module:
+## 2. Method
 
-$$
-\tilde{z} = z + \alpha\, h(z), \qquad \alpha = 0.2
-$$
+The Semi-supervised baseline is unchanged (caption bank from B, EMA teacher, top-3 pseudo-captions, coverage 0.5, $\mathcal L_{\text{con}}$, $\mathcal L_{\text{pcap}}$). The only trainable module remains the adapter $\tilde z = z + 0.2\,h(z)$. Each epoch we generate class pseudo-labels for A (steps 1–3, no gradients) and train on them (step 4).
 
-where $z$ is the frozen CLIP image feature and $h$ a small MLP. The training objective is
+1. **Caption→class table** (once). Class prompts $v_c = g(\text{"an aerial photo of } c\text{."})$; each bank caption gets $a_{jc}=\mathrm{softmax}_c\big(\cos(g(\text{caption}_j), v_c)/\tau_{\text{text}}\big)$.
+2. **Bridging.** With the teacher's top-3 caption weights $q_{uj}$, image $u$ gets $r_{uc}=\sum_j q_{uj}a_{jc}$. Differently worded captions about the same scene pool their evidence; vague ones stay flat.
+3. **Partial balancing + hard labels.** Unbalanced Sinkhorn over *all* A images: $Q_{uc}\propto r_{uc}^{1/\varepsilon_b}\alpha_c$, rows sum to 1, class masses rescaled each iteration by $(\pi_c/\text{mass}_c)^{\kappa}$ ($\kappa=1$: match prior; $\kappa=0$: none). Prior $\pi$: uniform or mean $a_{jc}$ over B-train captions (label-free). Then $\hat y_u=\arg\max_c Q_{uc}$.
+4. **Training** on the baseline's selected images $\mathcal U_{\text{sel}}$, with the frozen class prompts as classifier:
 
-$$
-\mathcal{L} = \mathcal{L}_{\mathrm{con}} + \lambda_{\mathrm{pcap}}\, \mathcal{L}_{\mathrm{pcap}}
-$$
+$$\mathcal L_{\text{bridge}} = -\tfrac{1}{|\mathcal U_{\text{sel}}|}\textstyle\sum_{u\in\mathcal U_{\text{sel}}}\log\mathrm{softmax}_c\big(s\cos(\tilde z_u, v_c)\big)_{\hat y_u},\qquad \mathcal L=\mathcal L_{\text{con}}+\lambda_{\text{pcap}}\mathcal L_{\text{pcap}}+\lambda_{\text{bridge}}\mathcal L_{\text{bridge}}$$
 
-**Contrastive loss** ($\mathcal{L}_{\mathrm{con}}$, Split B). Standard symmetric InfoNCE between
-the adapted image features and the CLIP text features of their captions. For a batch of $N$
-(image, caption) pairs with logits $\ell_{ij} = s \cos(\tilde{z}_i, t_j)$ and the CLIP
-temperature $s$,
+$\lambda_{\text{bridge}}$ ramps from 0 over the first 20% of training.
 
-$$
-\mathcal{L}_{\mathrm{con}} = -\frac{1}{2N} \sum_{i=1}^{N} \left[ \log \frac{e^{\ell_{ii}}}{\sum_{j} e^{\ell_{ij}}} + \log \frac{e^{\ell_{ii}}}{\sum_{j} e^{\ell_{ji}}} \right]
-$$
+**Design choices.** Balancing uses all of A because the confident subset is skewed to easy classes. Hard labels because ROSE showed soft targets with relabelling collapse. Partial balancing because the true class prior is unknown. Training prompts differ from the evaluation prompt ("A satellite image of {}.") to avoid fitting its wording.
 
-Captions of the same image are masked out of each other's negatives.
+| Method | Pseudo-label source | Balancing |
+| --- | --- | --- |
+| Semi-supervised (`main`) | none | – |
+| ROSE (`yundong/a-only`) | image–class-prompt similarity | full |
+| **Ours** | **pseudo-captions** | **partial** |
 
-**Pseudo-caption loss** ($\mathcal{L}_{\mathrm{pcap}}$, Split A). Split A has no captions, so
-every A image borrows captions from B. All B captions form a caption bank. For an A image $u$
-and a bank caption $j$, an EMA teacher of the adapter (never the student) computes two scores:
+Hypothesis vs. ROSE: captions hold class evidence the class names lack, especially for near-synonyms where ROSE scores 0% (playfields, sparse residential).
 
-$$
-S_{\mathrm{IT}}(u, j) = \cos(z_u, t_j), \qquad S_{\mathrm{II}}(u, j) = \max_{i \in \mathrm{src}(j)} \cos(z_u, z_i)
-$$
+## 3. Data usage
 
-where $\mathrm{src}(j)$ is the set of B images that caption $j$ belongs to. Both are z-scored
-per image over the bank and fused:
+- **A:** images only; captions, labels and filenames (contain class names) never read.
+- **B:** images + captions for training; caption bank from each fold's B-train part only. Class labels used **only** for evaluation and hyperparameter selection on held-out folds, never for training. The slides list B as "images + captions" without addressing its labels; this interpretation matches `main`'s pipeline (stratified folds, held-out zero-shot accuracy).
+- **C:** final evaluation only, once, after configs are frozen, behind the repo's C lock.
+- **Class names** are used in training (no image labels). Not strictly zero-shot w.r.t. class names; ROSE makes the same choice.
 
-$$
-R(u, j) = \lambda\, \mathrm{z}(S_{\mathrm{IT}}) + (1 - \lambda)\, \mathrm{z}(S_{\mathrm{II}}), \qquad \lambda = 0.2
-$$
+## 4. Experiments
 
-The image-to-image path dominates because CLIP's image-image similarity on RSICD is far more
-reliable than its image-text similarity.
+Development: `data=kfold5` (stratified, seed 0), seeds 0–2. Final: C, seeds 0–4. Selection on held-out B by classification accuracy, subject to mean R@1 ≤ 0.5 below Semi-supervised; rule and grid fixed beforehand in `docs/bridge_protocol.md`. Supervised and Semi-supervised are our reproductions (differences in `docs/reproduction.md`).
 
-The top-$k$ captions by $R$ are the candidates $\mathcal{N}_u$ for $u$, weighted by
+### 4.1 Diagnosis (held-out B; `scripts/diagnose_bias.py`; criteria pre-registered in `docs/TASK.md`)
 
-$$
-w_{uj} = \frac{e^{R(u, j)/\tau}}{\sum_{j' \in \mathcal{N}_u} e^{R(u, j')/\tau}}, \qquad \tau = 0.1
-$$
+| Metric | Zero-shot | Supervised | Semi-sup. |
+| --- | --- | --- | --- |
+| Accuracy / mean per-class | — | — | — |
+| TV distance, predicted vs. true class distribution | — | — | — |
+| Classes never predicted | — | — | — |
+| Acc. after test-time balancing: uniform / oracle prior | — | — | — |
+| Pseudo-caption correct when image wrong | — | — | — |
+| Acc., image × pseudo-caption evidence | — | — | — |
+| Errors into 3 text-nearest classes (chance —) | — | — | — |
 
-Only the `coverage` fraction of A images with the highest $\max_j R(u, j)$ is accepted in an
-epoch, so low-confidence images contribute nothing. On the accepted images the student
-minimizes a soft cross-entropy over the whole bank:
+Conclusion: —
 
-$$
-\mathcal{L}_{\mathrm{pcap}} = -\sum_{j \in \mathcal{N}_u} w_{uj}\, \log \frac{e^{\,s \cos(\tilde{z}_u, t_j)}}{\sum_{j'} e^{\,s \cos(\tilde{z}_u, t_{j'})}}
-$$
+### 4.2 Main results and ablations (C, 5 seeds)
 
-Candidates and weights are recomputed by the teacher every epoch, and $\lambda_{\mathrm{pcap}}$
-ramps up linearly from 0 to 1 over the first 20 % of training.
+| Method | Cls. acc | Mean per-class | TV dist. | I→T R@1/5/10 | T→I R@1/5/10 |
+| --- | --- | --- | --- | --- | --- |
+| Zero-shot CLIP | — | — | — | — | — |
+| Supervised | — | — | — | — | — |
+| Semi-supervised | — | — | — | — | — |
+| **Ours** | — | — | — | — | — |
+| Ours, no balancing ($\kappa=0$) | — | — | — | — | — |
+| Ours, image-derived labels | — | — | — | — | — |
+| Ours, soft targets | — | — | — | — | — |
+| Ours, other prior | — | — | — | — | — |
+| Semi-sup. + test-time balancing † | — | — | — | — | — |
 
-## Parameter sweeps
+† Transductive (uses unlabeled evaluation images); not comparable to other rows. Paired test, ours vs. Semi-supervised: —
 
-Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean ± std over
-3 seeds. mean R@1 is the average of the two retrieval directions and is the selection metric.
+### 4.3 Sensitivity (held-out B, 3 seeds; cls. acc / mean R@1)
 
+| $\lambda_{\text{bridge}}$ 0.25 / 0.5 / 1 | $\kappa$ 0 / 0.5 / 1 | $\varepsilon_b$ 0.5 / 1 | $\pi$ uniform / caption |
+| --- | --- | --- | --- |
+| — | — | — | — |
 
+### 4.4 Per-class accuracy (C)
 
-**Coverage** (top-K = 3)
-<div align="center">
+| Class | Zero-shot | Semi-sup. | Ours |
+| --- | --- | --- | --- |
+| center / stadium / playfields / sparse residential / commercial | — | — | — |
 
-| coverage | mean R@1     | Image → Text R@5 | Text → Image R@5 |
-| :------: | :----------: | :--------------: | :--------------: |
-| 0.2      | 20.82 ± 0.31 | 51.75 ± 1.51     | 64.51 ± 1.06     |
-| 0.5      | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
-| 0.7      | 21.48 ± 0.21 | 53.27 ± 3.01     | 64.54 ± 2.96     |
-| 0.9      | 22.86 ± 0.41 | 51.60 ± 2.91     | 65.75 ± 2.59     |
+## 5. Limitations
 
-</div>
+- Class names are used in training (§3).
+- Bridging cannot create evidence absent from the captions.
+- The balancing prior is approximate; partial balancing and the prior ablation measure the cost.
+- Pulling features towards 31 class prompts may compress within-class variation and hurt retrieval, hence retrieval is reported everywhere.
 
+## 6. Files
 
+`docs/bridge.md` (this file) · `docs/TASK.md`, `CLAUDE.md` (task spec, working rules) · `scripts/diagnose_bias.py` · added per phase: `docs/reproduction.md`, `docs/diagnosis.md`, `docs/bridge_protocol.md`, `docs/bridge_results.md`.
 
-**Top-K** (coverage = 0.5)
-<div align="center">
+## 7. Use of AI tools
 
-| top-$k$ | mean R@1     | Image → Text R@5 | Text → Image R@5 |
-| :-----: | :----------: | :--------------: | :--------------: |
-| 1       | 21.32 ± 0.47 | 51.75 ± 1.14     | 63.74 ± 1.37     |
-| 3       | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
-| 5       | 22.42 ± 0.60 | 50.23 ± 2.33     | 65.33 ± 3.25     |
-
-</div>
-
-The final configuration uses coverage = 0.5 and top-K = 3.
+Method developed in discussion with Claude (Anthropic). All design decisions, data-usage interpretations and results are reviewed by the author.

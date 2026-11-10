@@ -78,7 +78,7 @@ def assign_pseudo_captions(zA_t, zB_t, tB, bank_id, w_it, topk, tau, coverage):
     NA, NJ = zA_t.shape[0], tB.shape[0]
     S_it = zA_t @ tB.T                                          # [NA, NJ]
     S_img = zA_t @ zB_t.T                                       # [NA, NB]
-    S_ii = torch.full((NA, NJ), -float("inf"), device=zA_t.device)
+    S_ii = torch.full((NA, NJ), -float("inf"), device=zA_t.device, dtype=zA_t.dtype)
     idx = bank_id.reshape(1, -1).expand(NA, -1)                 # column i*5+k -> bank id of image i slot k
     S_ii.scatter_reduce_(1, idx, S_img.repeat_interleave(bank_id.shape[1], dim=1), reduce="amax")
     R = w_it * zscore_rows(S_it) + (1 - w_it) * zscore_rows(S_ii)

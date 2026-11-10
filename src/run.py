@@ -20,7 +20,9 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import DictConfig, OmegaConf
 
 from src.data import b_folds, class_prompt_names, load_classes, load_test, load_unlabeled
-from src.evaluate import evaluate
+from scripts.diagnose_bias import TEMPLATES as DIAG_TEMPLATES
+from scripts.diagnose_bias import class_text_embeddings, save_val_logits
+from src.evaluate import encode_images, evaluate
 from src.methods import build_method
 from src.models import build_model, get_device
 
@@ -101,6 +103,13 @@ def main(cfg: DictConfig):
             res["cached_max_abs_diff"] = max(abs(cm[k] - m[k]) for k in m)
             print(f"[fold {i}] cached-vs-standard max |diff| = {res['cached_max_abs_diff']:.6f}")
         results.append(res)
+        if cfg.eval.split == "val":
+            # Held-out scores for scripts/diagnose_bias.py: b_val re-encoded through the (wrapped)
+            # model.encode_image, cosines to the frozen class-text embeddings of the course template.
+            feats = encode_images(model, b_val, eval_tf, dev, cfg.eval.batch_size, cfg.eval.num_workers)[0]
+            W = class_text_embeddings(model, tok, class_names, DIAG_TEMPLATES, dev)
+            save_val_logits(os.path.join(out_dir, f"val_logits_fold{i}.pt"), b_val.filepath.tolist(),
+                            feats, W, fold=i, scale=model.logit_scale.exp().item())
 
     summary = summarize(results)
     json.dump({"exp_name": cfg.exp_name, "eval_split": cfg.eval.split, "n_folds": len(results),
