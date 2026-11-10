@@ -73,7 +73,10 @@ def main(cfg: DictConfig):
     os.makedirs(split_dir, exist_ok=True)
 
     results, model = [], None
+    run_folds = cfg.get("folds")
     for i, (b_train, b_val) in enumerate(folds):
+        if run_folds is not None and i not in run_folds:
+            continue
         b_train[["filepath"]].to_csv(f"{split_dir}/fold{i}_train.csv", index=False)
         b_val[["filepath"]].to_csv(f"{split_dir}/fold{i}_val.csv", index=False)
 
@@ -87,9 +90,17 @@ def main(cfg: DictConfig):
 
         eval_df = c_test if c_test is not None else b_val
         m = evaluate(model, tok, eval_tf, eval_df, dev, cfg.eval, class_names, templates)
-        results.append({"fold": i, "n_b_train": len(b_train), "n_b_val": len(b_val),
-                        "eval_split": cfg.eval.split, "n_eval": len(eval_df), "metrics": m})
+        res = {"fold": i, "n_b_train": len(b_train), "n_b_val": len(b_val),
+               "eval_split": cfg.eval.split, "n_eval": len(eval_df), "metrics": m}
         print(f"[fold {i}] " + "  ".join(f"{k}={v:.4f}" for k, v in m.items()))
+        # Methods trained on cached features report the same metrics computed from the cache;
+        # they must agree with the standard encode_image path (only meaningful on B-val).
+        cm = getattr(method, "last_cached_metrics", None)
+        if cm is not None and cfg.eval.split == "val":
+            res["cached_metrics"] = cm
+            res["cached_max_abs_diff"] = max(abs(cm[k] - m[k]) for k in m)
+            print(f"[fold {i}] cached-vs-standard max |diff| = {res['cached_max_abs_diff']:.6f}")
+        results.append(res)
 
     summary = summarize(results)
     json.dump({"exp_name": cfg.exp_name, "eval_split": cfg.eval.split, "n_folds": len(results),

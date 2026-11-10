@@ -11,6 +11,7 @@ defaults:
 
 exp_name: ${method.name}_${model.name}
 seed: 0
+folds: null           # e.g. [0] to run only some folds of data.b_split (development)
 device: mps            # auto | cuda | mps | cpu
 
 hydra:
