@@ -1,0 +1,23 @@
+# Method 2 (semi-supervised): residual image adapter on frozen CLIP, L_con on B-train + L_pcap on A.
+# Method 1 (supervised, B only) = the same config with pcap.enabled=false.
+# Defaults not given in the README are documented in docs/reproduction.md.
+name: semi
+cache_dir: runs/cache      # frozen CLIP features (gitignored)
+steps: 2000                # total optimiser steps; fixed from the fold-0 curve (docs/reproduction.md)
+batch_b: 128               # B pairs per step
+batch_a: 128               # accepted A images per step
+lr: 1.0e-3                 # AdamW, cosine decay to 0 over `steps`
+weight_decay: 1.0e-4
+ema: 0.999                 # teacher momentum, updated every step
+adapter:
+  alpha: 0.2
+  hidden: 512
+pcap:
+  enabled: true
+  lambda: 1.0              # target weight, linear ramp from 0 over the first `ramp` of steps
+  ramp: 0.2
+  w_it: 0.2                # R = w_it * z(S_IT) + (1 - w_it) * z(S_II)
+  topk: 3
+  tau: 0.1
+  coverage: 0.5
+monitor_every: 0           # >0: log B-val mean R@1 (cached features) every n steps
