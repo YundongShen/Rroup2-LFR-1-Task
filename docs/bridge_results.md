@@ -1,7 +1,7 @@
 # Bridge results
 
-Phase 4 (selection and comparison on B held-out folds) is complete. Phase 5 (split C) has not been run:
-the C table below is empty until the user approves the configurations. The protocol is `docs/bridge_protocol.md`,
+Phase 4 (selection and comparison on B held-out folds) and phase 5 (one final evaluation on split C, §6) are
+complete. The protocol is `docs/bridge_protocol.md`,
 committed before any phase-4 run. B class labels are used for evaluation and selection on held-out folds only,
 never for training (protocol §1). Every label-based selection is reported together with mean R@1 (mR1).
 
@@ -21,6 +21,11 @@ Common settings: ViT-B/32 laion2b, T = 500, τ_text = 0.01 (protocol §3), train
 Metrics are 5-fold means. Seeds 0–2 are given as mean ± std (population std over seeds).
 
 ## Summary
+
+**C (final, §6):** ours vs method 2: acc 81.04 ± 0.20 vs 81.07 ± 0.14 (paired −0.03, p = 0.65, not
+significant); per-class acc 82.54 vs 82.20 (+0.34 in all 5 seeds, p = 0.002); mean R@1 7.95 vs 7.82.
+Test-time balancing † (transductive): 82.13 acc. The B summary follows.
+
 
 | | acc | per-class acc | mR1 |
 |---|---|---|---|
@@ -437,13 +442,104 @@ vocabulary gap into a training signal that pushes playfields images towards play
 Sparse residential → medium residential drops from 23.0 to 13.3 per seed. But the errors move to resort (12.0)
 rather than becoming correct.
 
-## 6. Final results on C
+## 6. Final results on C (phase 5)
 
-Not run. Phase 5 (C, seeds 0–4, table in README format) needs the user's approval of the configurations
-in `runs/p4/chosen.json`:
+Phase 5 was run once, after the user's approval, with the configurations frozen in `runs/p4/chosen.json` and the plan
+in `docs/bridge_protocol.md` §7 (committed before the run).
 
-- #2: caption_l0.25_e1.0_k0
-- #3: caption_l0.25_e1.0_k0.5_uniform
-- #4: image_l0.25_e0.5_k1_caption
-- #5: #3 with target=soft
-- #6: κ 1, ε_b 1, uniform
+- Job: p5_c 5140623, 21 min, 36 runs; `runs/test_access.log` has exactly 36 entries.
+- Regenerate: `python scripts/final_results.py --root runs/p5 --out runs/p5/results.md`.
+- Pipeline: `data=kfold5`. Each seed gives 5 fold models, each trained on its fold's B-train part plus A and
+  evaluated on all 1,093 C images.
+
+**Outcome.**
+
+- **Primary criterion not met.** Ours vs method 2 on acc: −0.03 ± 0.15 (paired over 5 seeds, t-test p = 0.65).
+  The +0.45 seen on B did not carry over, consistent with the selection bias discussed in §3.
+- **Per-class mean acc (secondary): small but consistent gain.** It improves in all 5 seeds: +0.34 ± 0.11,
+  t-test p = 0.002; the Wilcoxon p = 0.0625 is the minimum attainable with n = 5.
+- **mean R@1:** +0.14 (p = 0.10), i.e. retrieval is not hurt.
+- **Ablations reproduce B qualitatively.**
+  - Without balancing, the bridge hurts: κ = 0 is −2.49 vs method 2.
+  - Balancing recovers this: +2.46 over κ = 0.
+  - The caption prior is clearly worse than uniform (−1.98).
+  - source=image is worst (−3.19).
+  - Soft targets are worse than hard (−0.61).
+- **TV and playfields again worse.** TV vs the true C distribution rises (14.30 vs 13.32 for method 2).
+  Playfields drops from 17.0 to 1.3, the same failure as on B (§5).
+- **Gains and losses by class** (ours vs method 2, %):
+  - gains: airport +11.2, center +8.7, meadow +6.7, river +5.6, dense residential +5.6;
+  - losses: medium residential −10.6, park −9.2, viaduct −6.6.
+- **#6 test-time balancing (transductive) is the only clear improvement:** +1.06 acc and +1.23 per-class in every
+  seed, with TV 8.11 and retrieval unchanged. It balances over the whole unlabeled C set jointly, so it is not
+  comparable to the inductive rows.
+
+**Comparison with the README C numbers.** Our method-1/2 accuracies (78.8 / 81.1) are well above the README's
+(73.8 / 74.7); this was already seen on B (`docs/reproduction.md` §5). Our R@5 is close to the README's. Our
+zero-shot accuracy is 62.76 vs 63.76 in the README. On B, zero-shot agreed with the README (63.6 vs 63.8), so
+the 1-point C gap (about 11 images) is unexplained. We do not investigate it, because that would mean
+re-running on C.
+
+#### Main results and ablations (C, seeds 0–4; mean ± std over seeds; per seed: mean over the 5 fold models)
+
+| Method | Cls. acc | Mean per-class | TV dist. | I→T R@1/5/10 | T→I R@1/5/10 | mean R@1 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Zero-shot CLIP | 62.76 | 63.03 | 22.87 | 6.59 / 17.47 / 27.90 | 6.40 / 21.21 / 33.80 | 6.50 |
+| Supervised (method 1) | 78.77 ± 0.17 | 80.38 ± 0.16 | 14.18 ± 0.07 | 8.63 / 21.53 / 32.60 | 6.87 / 23.73 / 37.93 | 7.75 ± 0.12 |
+| Semi-supervised (method 2, #1) | 81.07 ± 0.14 | 82.20 ± 0.17 | 13.32 ± 0.14 | 8.76 / 23.22 / 34.97 | 6.87 / 24.41 / 38.73 | 7.82 ± 0.05 |
+| **Ours** (#3: λ 0.25, ε_b 1, κ 0.5, uniform) | 81.04 ± 0.20 | 82.54 ± 0.22 | 14.30 ± 0.12 | 8.97 / 23.37 / 35.21 | 6.93 / 24.42 / 38.88 | 7.95 ± 0.07 |
+| Ours, no balancing (#2, κ = 0) | 78.58 ± 0.25 | 79.89 ± 0.28 | 16.94 ± 0.12 | 8.93 / 23.50 / 34.98 | 6.89 / 24.32 / 38.76 | 7.91 ± 0.03 |
+| Ours, image-derived labels (#4) | 77.88 ± 0.13 | 79.05 ± 0.15 | 16.42 ± 0.06 | 8.76 / 23.30 / 34.56 | 6.85 / 24.32 / 38.71 | 7.80 ± 0.04 |
+| Ours, soft targets (#5) | 80.43 ± 0.17 | 81.94 ± 0.21 | 14.52 ± 0.20 | 8.97 / 23.55 / 35.17 | 6.91 / 24.36 / 38.71 | 7.94 ± 0.09 |
+| Ours, other prior (caption prior) | 79.06 ± 0.21 | 80.36 ± 0.23 | 16.65 ± 0.18 | 8.85 / 23.46 / 35.04 | 6.90 / 24.31 / 38.83 | 7.87 ± 0.03 |
+| Semi-sup. + test-time balancing † (#6) | 82.13 ± 0.11 | 83.44 ± 0.14 | 8.11 ± 0.12 | 8.76 / 23.22 / 34.97 | 6.87 / 24.41 / 38.73 | 7.82 ± 0.05 |
+
+† Transductive (balances over all unlabeled C images jointly); not comparable to other rows; retrieval is that of method 2. Zero-shot is deterministic (one run). R@k: seed means; their stds are in summary.json.
+
+#### Paired tests (same seed, n = 5; two-sided paired t-test, 4 d.o.f.; exact Wilcoxon signed-rank)
+
+| comparison | metric | per-seed differences | mean diff | std diff | t | p (t-test) | p (Wilcoxon) |
+|---|---|---|---|---|---|---|---|
+| Ours (#3: λ 0.25, ε_b 1, κ 0.5, uniform) − method 2 | acc | -0.09, +0.16, -0.05, +0.05, -0.24 | -0.03 | 0.15 | -0.48 | 0.654 | 0.812 |
+| Ours (#3: λ 0.25, ε_b 1, κ 0.5, uniform) − method 2 | per-class acc | +0.29, +0.50, +0.36, +0.34, +0.21 | +0.34 | 0.11 | 7.18 | 0.002 | 0.062 |
+| Ours (#3: λ 0.25, ε_b 1, κ 0.5, uniform) − method 2 | mean R@1 | +0.07, +0.09, -0.02, +0.35, +0.19 | +0.14 | 0.14 | 2.16 | 0.097 | 0.125 |
+| Semi-sup. + test-time balancing † (#6) − method 2 | acc | +1.04, +1.02, +1.10, +1.12, +1.01 | +1.06 | 0.05 | 49.93 | 0.000 | 0.062 |
+| Semi-sup. + test-time balancing † (#6) − method 2 | per-class acc | +1.28, +1.13, +1.35, +1.21, +1.18 | +1.23 | 0.09 | 31.33 | 0.000 | 0.062 |
+
+Primary criterion (protocol §7): acc, ours vs method 2, paired t-test at α = 0.05. With n = 5 the Wilcoxon p-value cannot fall below 0.0625.
+
+#### Per-class accuracy on C (mean over seeds and fold models, %; ★ = focus classes)
+
+| Class | n | Zero-shot | Method 1 | Semi-sup. | Ours | Ours κ=0 | TTA † |
+|---|---|---|---|---|---|---|---|
+| airport | 42 | 88.1 | 79.0 | 84.2 | 95.4 | 95.7 | 91.0 |
+| bare land | 31 | 22.6 | 90.3 | 92.1 | 94.7 | 94.7 | 92.9 |
+| baseball field | 28 | 96.4 | 99.9 | 100.0 | 100.0 | 100.0 | 100.0 |
+| beach | 40 | 100.0 | 100.0 | 100.0 | 100.0 | 100.0 | 97.2 |
+| bridge | 46 | 95.7 | 97.0 | 96.6 | 97.7 | 97.7 | 86.2 |
+| center ★ | 26 | 0.0 | 27.7 | 11.8 | 20.5 | 28.2 | 41.4 |
+| church | 24 | 70.8 | 85.0 | 92.0 | 91.5 | 87.8 | 92.7 |
+| commercial ★ | 35 | 17.1 | 77.9 | 68.8 | 69.0 | 45.8 | 62.6 |
+| dense residential | 41 | 80.5 | 90.0 | 92.1 | 97.7 | 98.8 | 86.0 |
+| desert | 30 | 93.3 | 93.1 | 95.9 | 96.0 | 96.3 | 99.6 |
+| farmland | 37 | 97.3 | 90.4 | 94.7 | 97.1 | 97.1 | 91.1 |
+| forest | 25 | 80.0 | 100.0 | 100.0 | 98.9 | 100.0 | 97.6 |
+| industrial | 39 | 46.2 | 72.8 | 72.8 | 74.6 | 73.9 | 83.1 |
+| meadow | 28 | 17.9 | 70.0 | 80.9 | 87.6 | 75.7 | 81.3 |
+| medium residential ★ | 29 | 93.1 | 89.1 | 93.1 | 82.5 | 58.1 | 90.3 |
+| mountain | 34 | 88.2 | 100.0 | 98.2 | 98.6 | 98.0 | 97.6 |
+| park | 35 | 54.3 | 71.1 | 76.7 | 67.5 | 59.3 | 80.6 |
+| parking | 39 | 100.0 | 98.4 | 100.0 | 100.0 | 100.0 | 95.9 |
+| playground ★ | 37 | 2.7 | 94.7 | 88.3 | 86.1 | 83.9 | 66.8 |
+| pond | 42 | 100.0 | 97.0 | 96.6 | 98.6 | 99.1 | 95.6 |
+| port | 39 | 94.9 | 95.5 | 97.7 | 99.7 | 99.7 | 99.4 |
+| railway station | 26 | 92.3 | 84.9 | 95.7 | 94.0 | 91.7 | 98.6 |
+| resort | 29 | 55.2 | 90.1 | 87.2 | 90.8 | 91.6 | 87.4 |
+| river | 41 | 48.8 | 58.5 | 66.4 | 72.0 | 69.0 | 70.1 |
+| school | 30 | 13.3 | 85.2 | 82.8 | 82.1 | 74.3 | 85.7 |
+| sparse residential ★ | 30 | 0.0 | 0.0 | 0.0 | 1.6 | 1.9 | 22.5 |
+| square | 33 | 48.5 | 96.4 | 93.1 | 92.5 | 89.8 | 93.2 |
+| stadium ★ | 29 | 100.0 | 91.9 | 93.1 | 94.3 | 94.6 | 93.1 |
+| storage tanks | 40 | 90.0 | 70.4 | 83.3 | 86.2 | 86.6 | 83.2 |
+| viaduct | 42 | 66.7 | 93.5 | 97.1 | 90.5 | 86.2 | 94.6 |
+| playfields ★ | 66 | 0.0 | 1.9 | 17.0 | 1.3 | 1.0 | 29.1 |
