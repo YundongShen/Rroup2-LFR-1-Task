@@ -22,20 +22,81 @@ We test these first (§4.1), then address the first two with one added loss.
 
 ## 2. Method
 
-The Semi-supervised baseline is unchanged (caption bank from B, EMA teacher, top-3 pseudo-captions, coverage 0.5, $`\mathcal L_{\text{con}}`$, $`\mathcal L_{\text{pcap}}`$). The only trainable module remains the adapter $`\tilde z = z + 0.2\,h(z)`$. Each epoch we generate class pseudo-labels for A (steps 1–3, no gradients) and train on them (step 4).
+### 2.1 Overview
 
-1. **Caption→class table** (once). Class prompts $`v_c = g(\text{"an aerial photo of } c\text{."})`$; each bank caption gets $`a_{jc}=\mathrm{softmax}_c\big(\cos(g(\text{caption}_j), v_c)/\tau_{\text{text}}\big)`$.
-2. **Bridging.** With the teacher's top-3 caption weights $`q_{uj}`$, image $`u`$ gets $`r_{uc}=\sum_j q_{uj}a_{jc}`$. Differently worded captions about the same scene pool their evidence; vague ones stay flat.
-3. **Partial balancing + hard labels.** Unbalanced Sinkhorn over *all* A images: $`Q_{uc}\propto r_{uc}^{1/\varepsilon_b}\alpha_c`$, rows sum to 1, class masses rescaled each iteration by $`(\pi_c/\text{mass}_c)^{\kappa}`$ ($`\kappa=1`$: match prior; $`\kappa=0`$: none). Prior $`\pi`$: uniform or mean $`a_{jc}`$ over B-train captions (label-free). Then $`\hat y_u=\arg\max_c Q_{uc}`$.
-4. **Training** on the baseline's selected images $`\mathcal U_{\text{sel}}`$, with the frozen class prompts as classifier:
+The Semi-supervised baseline is kept unchanged: caption bank from B, EMA teacher, top-3 pseudo-captions, coverage 0.5, and the losses $`\mathcal L_{\text{con}}`$ and $`\mathcal L_{\text{pcap}}`$. The only trainable module is still the image-side adapter
 
 ```math
-\mathcal L_{\text{bridge}} = -\tfrac{1}{|\mathcal U_{\text{sel}}|}\sum_{u\in\mathcal U_{\text{sel}}}\log\mathrm{softmax}_c\big(s\cos(\tilde z_u, v_c)\big)_{\hat y_u},\qquad \mathcal L=\mathcal L_{\text{con}}+\lambda_{\text{pcap}}\mathcal L_{\text{pcap}}+\lambda_{\text{bridge}}\mathcal L_{\text{bridge}}
+\tilde z = z + 0.2\,h(z).
 ```
 
-$`\lambda_{\text{bridge}}`$ ramps from 0 over the first 20% of training.
+We add one loss. At the start of every epoch, class pseudo-labels are generated for the A images (steps 1–3, no gradients); the adapter is then trained on them (step 4).
 
-**Design choices.** Balancing uses all of A because the confident subset is skewed to easy classes. Hard labels because ROSE showed soft targets with relabelling collapse. Partial balancing because the true class prior is unknown. Training prompts differ from the evaluation prompt ("A satellite image of {}.") to avoid fitting its wording.
+### 2.2 Step 1: caption-to-class table (computed once)
+
+Each class $`c`$ gets a prompt embedding from the frozen text encoder $`g`$:
+
+```math
+v_c = g(\text{"an aerial photo of } c\text{."})
+```
+
+Each caption $`j`$ in the bank gets a distribution over the 31 classes:
+
+```math
+a_{jc} = \mathrm{softmax}_c\!\left(\frac{\cos\big(g(\text{caption}_j),\, v_c\big)}{\tau_{\text{text}}}\right)
+```
+
+### 2.3 Step 2: bridging
+
+The teacher assigns each A image $`u`$ its top-3 captions with weights $`q_{uj}`$. The image's caption-derived class distribution is
+
+```math
+r_{uc} = \sum_j q_{uj}\, a_{jc}.
+```
+
+Differently worded captions about the same scene pool their evidence; vague captions give a flat distribution instead of a forced decision.
+
+### 2.4 Step 3: partial balancing and hard labels
+
+An unbalanced Sinkhorn over **all** A images finds per-class scalings $`\alpha_c`$:
+
+```math
+Q_{uc} \propto r_{uc}^{1/\varepsilon_b}\,\alpha_c, \qquad \sum_c Q_{uc} = 1.
+```
+
+In each iteration the class masses are rescaled by $`(\pi_c / \text{mass}_c)^{\kappa}`$:
+
+- $`\kappa = 1`$ matches the prior exactly; $`\kappa = 0`$ disables balancing.
+- The prior $`\pi`$ is uniform, or the mean of $`a_{jc}`$ over the B-train captions. Neither uses class labels.
+
+The pseudo-label is
+
+```math
+\hat y_u = \arg\max_c Q_{uc}.
+```
+
+### 2.5 Step 4: training
+
+On the images $`\mathcal U_{\text{sel}}`$ selected by the baseline, the frozen class prompts act as the classifier:
+
+```math
+\mathcal L_{\text{bridge}} = -\frac{1}{|\mathcal U_{\text{sel}}|}\sum_{u\in\mathcal U_{\text{sel}}} \log \mathrm{softmax}_c\big(s\cos(\tilde z_u, v_c)\big)_{\hat y_u}
+```
+
+```math
+\mathcal L = \mathcal L_{\text{con}} + \lambda_{\text{pcap}}\,\mathcal L_{\text{pcap}} + \lambda_{\text{bridge}}\,\mathcal L_{\text{bridge}}
+```
+
+$`\lambda_{\text{bridge}}`$ ramps linearly from 0 over the first 20% of training. Gradients reach only the adapter $`h`$.
+
+### 2.6 Design choices
+
+- **Balancing on all of A:** the confident subset selected by the baseline is skewed towards easy classes.
+- **Hard labels:** ROSE showed that soft targets with per-epoch relabelling collapse.
+- **Partial balancing:** the true class prior is unknown.
+- **Different prompts:** training uses "an aerial photo of {}.", evaluation uses "A satellite image of {}.", so gains do not come from fitting the evaluation wording.
+
+### 2.7 Relation to other branches
 
 | Method | Pseudo-label source | Balancing |
 | --- | --- | --- |
@@ -43,7 +104,7 @@ $`\lambda_{\text{bridge}}`$ ramps from 0 over the first 20% of training.
 | ROSE (`yundong/a-only`) | image–class-prompt similarity | full |
 | **Ours** | **pseudo-captions** | **partial** |
 
-Hypothesis vs. ROSE: captions hold class evidence the class names lack, especially for near-synonyms where ROSE scores 0% (playfields, sparse residential).
+Our hypothesis is that captions hold class evidence that class names lack, especially for near-synonymous classes where ROSE scores 0% (playfields, sparse residential).
 
 ## 3. Data usage
 
@@ -111,4 +172,4 @@ Conclusion: —
 
 ## 7. Use of AI tools
 
-Method developed in discussion with Claude (Anthropic); implementation and experiments run with Claude Code following `docs/TASK.md`. All design decisions, data-usage interpretations and results are reviewed by the author.
+Method developed in discussion with Claude (Anthropic). All design decisions, data-usage interpretations and results are reviewed by the author.

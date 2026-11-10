@@ -18,6 +18,8 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--root", default="runs/diagnosis")
 ap.add_argument("--out", default=None)
 ap.add_argument("--plot", default=None)
+ap.add_argument("--logits_root", default=None,
+                help="e.g. runs/p1: reads <root>/{sup,semi}_s*/<latest>/val_logits_fold*.pt for confusion pairs")
 args = ap.parse_args()
 
 dirs = sorted(glob.glob(os.path.join(args.root, "s*")))
@@ -111,6 +113,36 @@ for _, r in pc.iterrows():
              for c in cols]
     out(f"| {r['class']}{star} | {int(r['n'])} | {100 * r['true_share']:.1f} | " + " | ".join(cells) + " |")
 out("")
+
+# ------------------------------------------------------------------ top confusion pairs from the held-out logits
+if args.logits_root:
+    import torch
+    b = pd.read_csv("data/splits/B_labeled.csv")
+    row = {p: i for i, p in enumerate(b.filepath)}
+    y = b.label.values
+    names = list(pc["class"])
+    out("### Most frequent confusions (true → predicted; images per seed, mean over seeds; share of all errors)\n")
+    for prefix, lbl in [("sup", "method 1"), ("semi", "method 2")]:
+        counts, n_err = {}, []
+        seeds = sorted(glob.glob(os.path.join(args.logits_root, f"{prefix}_s*")))
+        for sd in seeds:
+            run = sorted(glob.glob(os.path.join(sd, "*", "val_logits_fold0.pt")))[-1]
+            pred = np.full(len(b), -1)
+            for f in glob.glob(os.path.join(os.path.dirname(run), "val_logits_fold*.pt")):
+                d = torch.load(f, weights_only=False)
+                pred[[row[p] for p in d["filepath"]]] = d["cos"].argmax(1)
+            assert (pred >= 0).all()
+            wrong = pred != y
+            n_err.append(wrong.sum())
+            for t, p in zip(y[wrong], pred[wrong]):
+                counts[(t, p)] = counts.get((t, p), 0) + 1
+        top = sorted(counts.items(), key=lambda kv: -kv[1])[:10]
+        out(f"**{lbl}** ({np.mean(n_err):.1f} errors per seed)\n")
+        out("| true → predicted | images | share of errors (%) |")
+        out("|---|---|---|")
+        for (t, p), c in top:
+            out(f"| {names[t]} → {names[p]} | {c / len(seeds):.1f} | {100 * c / sum(n_err):.1f} |")
+        out("")
 
 text = "\n".join(lines)
 print(text)
