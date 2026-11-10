@@ -82,7 +82,16 @@ Consequence: with EMA 0.999 the teacher moves little within 500 steps (17.9 mean
 
 ## 4. Results on B held-out folds (`data=kfold5`, seeds 0, 1, 2)
 
-`python scripts/phase1_table.py` (runs: `runs/p1/{semi,sup}_s{0,1,2}`, job `scripts/slurm/phase1_main.bash`).
+`python scripts/phase1_table.py` (runs: `runs/p1/{semi,sup}_s{0,1,2}`).
+Commands (each run covers all 5 folds; s ∈ {0, 1, 2}):
+
+```
+python -m src.run model=vit_b32_laion2b device=cuda data=kfold5 method=semi seed=$s exp_name=p1/semi_s$s
+python -m src.run model=vit_b32_laion2b device=cuda data=kfold5 method=semi seed=$s exp_name=p1/sup_s$s method.pcap.enabled=false
+```
+
+The fold-0 step curve (section 3) uses the same command with `folds=[0] seed=0 method.monitor_every=100
+method.steps=$T exp_name=steps/{semi,sup}_T$T`; `python scripts/steps_table.py` builds its table.
 Each seed's value is the mean over the 5 held-out folds; mean ± std over the 3 seeds (%).
 
 | method | acc | per-class acc | mean R@1 | I→T R@1 | I→T R@5 | I→T R@10 | T→I R@1 | T→I R@5 | T→I R@10 |

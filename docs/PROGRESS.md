@@ -51,8 +51,12 @@
 - B 类别标签：只可在留出 fold 上用于评估、诊断与选参，绝不作为训练信号；凡用标签指标做选择时
   同时报告 mean R@1。已写入 TASK.md【待填写】和 `docs/bridge_protocol.md` 第 1 节。阶段 1、2、4 按原文执行。
 - GPU 预算：未定总额，每个训练作业控制在 2 小时以内。
-- 其余由我处理：`scripts/slurm/` 从本地 exclude 移除并纳入版本控制；`run.sbatch` 加
-  `HF_HUB_OFFLINE=1`（作业 5123960 验证：无网络请求，零样本结果与第一次逐位一致）。
+- 本地 `run.sbatch` 加 `HF_HUB_OFFLINE=1`（作业 5123960 验证：无网络请求，零样本结果与第一次逐位一致）。
+
+- TASK.md 更新（用户）：集群文件（`scripts/slurm/`、`containers/`）只留本地，不得提交；只提交方法代码、
+  Python 分析脚本、测试与文档。已恢复 `.git/info/exclude` 中的 `scripts/slurm/`，并用 filter-branch 把它从
+  本地未推送的历史中移除（旧 HEAD 79a5430 / 398075c 保存在 `refs/original/` 与 reflog）。作业命令改为写进文档。
+- TASK.md 更新（用户）：阶段 3 的非平衡 Sinkhorn 改为缩放向量形式（κ 作用在每轮重算的 β 上），并规定了三项单元测试。
 
 ## 推送
 - 不由我推送：所有提交留在本地，等整个方案完成后由用户统一 push。
