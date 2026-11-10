@@ -1,7 +1,7 @@
 # PROGRESS
 
 ## 当前阶段
-阶段 1（复现方法一、二）已完成，等待用户确认后进入阶段 2。
+阶段 2（诊断）已完成。诊断结论与阶段 3 设计的前提不一致，等待用户决定阶段 3 是否照原设计进行。
 
 ## 已完成
 ### 阶段 0（2026-11-10）
@@ -24,6 +24,27 @@
 2. 训练长度：fold 0 曲线（预先登记的规则）选出 T = 500。更长训练过拟合（T=8000 时 mean R@1 18.0）。
 3. 正式运行：kfold5 × 种子 0–2，作业 `p1_main` 5127397（2 分 48 秒）。
 4. 缓存路径与标准路径：40 个 fold 中 35 个完全一致，5 个有一张图的 I→T 排名差一位（重复 caption 的精确平局）。
+
+### 阶段 2（2026-11-10）
+详见 `docs/diagnosis.md`。
+1. `run.py` 在 `eval.split=val` 时保存 `val_logits_fold{k}.pt`；重跑方法一、二种子 0–2（与阶段 1 逐位一致）。
+2. 核对 `scripts/diagnose_bias.py` 与仓库（fold 划分、prompt、数据、伪 caption 打分）一致；
+   `tests/test_diagnose_bias.py` 11 项，全部 16 项测试通过。
+3. 诊断（作业 p2_diag 5130298）与汇总（`scripts/diagnosis_report.py`，含混淆对与分布图 `docs/figs/pred_vs_true.png`）。
+
+## 关键数字：阶段 2，方法二（3 个种子均值；预先设定的判据）
+| 假设 | 指标 | 值 | 结论 |
+|---|---|---|---|
+| H1 偏置 | 均衡后 acc − acc（需 > 2）；低估类数 | +0.70（1.01/0.64/0.46）；3 | 不支持 |
+| H2 转化 | caption_right_when_image_wrong（需 ≥ 30 %）；acc_image_x_caption − acc（需 > 1） | 30.70 %；+0.98（1.19/0.73/1.01） | 不支持（临界） |
+| H3 近义类 | err_share_into_3_text_nearest / 随机水平（需 ≥ 2） | 53.1 % / 10 % = 5.3× | 支持 |
+
+- 主要错误：playfields → playground（占全部错误 21 %），sparse residential → medium residential（13 %）。
+  playfields 召回 15.9 %（方法一 0 %），sparse residential 0 %，center 17.9 %（方法一 41.0 %）。
+- 这些类的 caption→类别映射本身就错：用图像自己的人工 caption，playfields 召回 0 %，sparse residential 16.7 %，
+  center 3.8 %（B 中 playfields 的 335 条 caption 有 135 条含 "playground"，无一含 "playfield"）。
+- 方法一 → 方法二：TV 12.22 → 11.52 %，过度预测类 1 → 0.33，低估类 2.3 → 3.0，从不预测 0 → 1；偏置只略有减轻。
+- caption 先验离真实分布远（TV 21 %），均匀先验 9 %。
 
 ## 关键数字：阶段 1，B 留出 fold（每个种子取 5 折均值，再报告 3 个种子的均值 ± 标准差，%）
 | 方法 | acc | per-class acc | mean R@1 | I→T R@5 | T→I R@5 |
@@ -61,10 +82,14 @@
 ## 推送
 - 不由我推送：所有提交留在本地，等整个方案完成后由用户统一 push。
 
+- 阶段 1 验收（用户）：按 mean R@1 判通过；R@5 偏低记录在案。T 保持 500（用户允许我自行修改；
+  更长训练只会过拟合，提高 teacher 作用需改 TASK 规定的 EMA 动量，故不改）。
+- 用户已自行提交并推送（23c776e 等），README 改写为桥接方法报告框架。
+
 ## 待用户决定
-- 方法二 R@5 低于方法一，是否算通过"检索指标高于方法一"（按 mean R@1 判是通过的）。
-- T=500 位于网格下沿，EMA teacher 在 500 步内几乎不动；是否接受（规则已预先固定，我没有改）。
+- 诊断不支持 H1（偏置）、H2 临界不支持、只支持 H3（近义类）。阶段 3 的"均衡 caption→类别桥接"针对 H1/H2，
+  且主要失败类的 a_jc 本身指向错误类别。阶段 3 是照原设计实现（作为预先设定的方案如实评估），还是调整设计？
 
 ## 下一步
-阶段 2：在 `run.py` 中保存 `val_logits_fold{k}.pt`，核对 `scripts/diagnose_bias.py` 与仓库的一致性并写单元测试，
-对方法一、二的种子 0–2 运行诊断。
+等待用户对阶段 3 的决定。若照原设计：按 TASK.md 新版缩放向量形式实现非平衡 Sinkhorn 与桥接损失、单元测试、
+关闭时与方法二逐位一致的验证。
