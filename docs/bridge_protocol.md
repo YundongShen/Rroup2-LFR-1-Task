@@ -92,3 +92,23 @@ Recorded for each: acc, per-class mean acc, TV(predicted, true class distributio
 R@1/5/10, mR1, per-class accuracy (from `val_logits_fold*.pt`). #6 is marked as transductive in every table.
 Results go to `docs/bridge_results.md`, produced by scripts under `scripts/` from `runs/`.
 Phase 5 (C, seeds 0–4) uses the selected configurations only after user approval.
+
+## 7. Phase 5: final evaluation on C (written 2026-11-10, after user approval and before any C run)
+
+Configurations are frozen from `runs/p4/chosen.json`; nothing is changed after C results are seen and C is
+run once (`eval.split=test eval.confirm_test=true`, logged in `runs/test_access.log`).
+
+- **Pipeline:** `data=kfold5` as in development: for each seed, the 5 fold models (each trained on that fold's
+  B-train part and A) are each evaluated on all of C; the per-seed value is the mean over the 5 fold models.
+  Seeds 0–4; mean ± std (population) over seeds. Zero-shot is deterministic and is run once.
+- **Rows:** zero-shot; method 1; #1 method 2; #2 caption_l0.25_e1.0_k0; #3 (main)
+  caption_l0.25_e1.0_k0.5_uniform; #4 image_l0.25_e0.5_k1_caption; #5 = #3 with target=soft;
+  "other prior" = #3 with prior=caption (README row; fixed by construction, not selected);
+  #6 † = method 2's C logits + test-time balancing (κ 1, ε_b 1, uniform; Sinkhorn over the 1,093 C images
+  for each fold model; transductive, not comparable to other rows).
+- **Metrics:** acc, mean per-class acc, TV(predicted, true C class distribution), I→T and T→I R@1/5/10,
+  mR1, per-class accuracy (mean over fold models and seeds).
+- **Paired test (TASK.md §7), #3 vs #1, same seed:** the 5 per-seed differences of acc, with mean, std,
+  two-sided paired t-test p-value (t distribution, 4 d.o.f.) and exact two-sided Wilcoxon signed-rank
+  p-value (with n = 5 its minimum is 0.0625, so it cannot reach 0.05). The same is reported for per-class acc
+  and mR1. Primary criterion: acc, paired t-test at α = 0.05.
