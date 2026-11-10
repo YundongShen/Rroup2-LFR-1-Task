@@ -103,13 +103,13 @@ def main(cfg: DictConfig):
             res["cached_max_abs_diff"] = max(abs(cm[k] - m[k]) for k in m)
             print(f"[fold {i}] cached-vs-standard max |diff| = {res['cached_max_abs_diff']:.6f}")
         results.append(res)
-        if cfg.eval.split == "val":
-            # Held-out scores for scripts/diagnose_bias.py: b_val re-encoded through the (wrapped)
-            # model.encode_image, cosines to the frozen class-text embeddings of the course template.
-            feats = encode_images(model, b_val, eval_tf, dev, cfg.eval.batch_size, cfg.eval.num_workers)[0]
-            W = class_text_embeddings(model, tok, class_names, DIAG_TEMPLATES, dev)
-            save_val_logits(os.path.join(out_dir, f"val_logits_fold{i}.pt"), b_val.filepath.tolist(),
-                            feats, W, fold=i, scale=model.logit_scale.exp().item())
+        # Evaluation-image scores for scripts/diagnose_bias.py and the result tables: eval_df (b_val, or C
+        # with eval.split=test) re-encoded through the (wrapped) model.encode_image, cosines to the frozen
+        # class-text embeddings of the course template. -> {val|test}_logits_fold{i}.pt
+        feats = encode_images(model, eval_df, eval_tf, dev, cfg.eval.batch_size, cfg.eval.num_workers)[0]
+        W = class_text_embeddings(model, tok, class_names, DIAG_TEMPLATES, dev)
+        save_val_logits(os.path.join(out_dir, f"{cfg.eval.split}_logits_fold{i}.pt"), eval_df.filepath.tolist(),
+                        feats, W, fold=i, scale=model.logit_scale.exp().item())
 
     summary = summarize(results)
     json.dump({"exp_name": cfg.exp_name, "eval_split": cfg.eval.split, "n_folds": len(results),
