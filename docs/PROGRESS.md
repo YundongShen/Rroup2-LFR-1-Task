@@ -29,11 +29,15 @@
 逐折 mean R@1：14.34 / 12.33 / 12.74 / 14.61 / 14.77。
 （README 中 C 上的零样本准确率为 63.76，与 B 上的 63.62 相近。）
 
-## 待用户决定
-- TASK.md【待填写】：B 的类别标签能否用于留出 fold 的验证与选参；GPU 小时预算。
-- `scripts/slurm/` 被本地 `.git/info/exclude` 排除，`run.sbatch` 不受版本控制，与 TASK.md
-  "集群脚本提交到 `scripts/slurm/`" 的要求冲突。是否删除该排除规则并提交？
-- 是否在 `run.sbatch` 中加 `--env HF_HUB_OFFLINE=1`，避免运行时访问网络？
+## 用户决定（2026-11-10）
+- B 类别标签：只可在留出 fold 上用于评估、诊断与选参，绝不作为训练信号；凡用标签指标做选择时
+  同时报告 mean R@1。已写入 TASK.md【待填写】和 `docs/bridge_protocol.md` 第 1 节。阶段 1、2、4 按原文执行。
+- GPU 预算：未定总额，每个训练作业控制在 2 小时以内。
+- 其余由我处理：`scripts/slurm/` 从本地 exclude 移除并纳入版本控制；`run.sbatch` 加
+  `HF_HUB_OFFLINE=1`（离线复跑零样本验证中，作业 5123960）。
+
+## 待用户处理
+- 推送：origin 为 HTTPS，登录节点 shell 无 GitHub 凭据，提交暂只在本地，需用户推送或配置认证。
 
 ## 下一步
 阶段 1：实现方法二（`method=semi`，含 `pcap.enabled` 开关），先预缓存特征，再做小规模试运行。
