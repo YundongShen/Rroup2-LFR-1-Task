@@ -22,16 +22,18 @@ We test these first (§4.1), then address the first two with one added loss.
 
 ## 2. Method
 
-The Semi-supervised baseline is unchanged (caption bank from B, EMA teacher, top-3 pseudo-captions, coverage 0.5, $\mathcal L_{\text{con}}$, $\mathcal L_{\text{pcap}}$). The only trainable module remains the adapter $\tilde z = z + 0.2\,h(z)$. Each epoch we generate class pseudo-labels for A (steps 1–3, no gradients) and train on them (step 4).
+The Semi-supervised baseline is unchanged (caption bank from B, EMA teacher, top-3 pseudo-captions, coverage 0.5, $`\mathcal L_{\text{con}}`$, $`\mathcal L_{\text{pcap}}`$). The only trainable module remains the adapter $`\tilde z = z + 0.2\,h(z)`$. Each epoch we generate class pseudo-labels for A (steps 1–3, no gradients) and train on them (step 4).
 
-1. **Caption→class table** (once). Class prompts $v_c = g(\text{"an aerial photo of } c\text{."})$; each bank caption gets $a_{jc}=\mathrm{softmax}_c\big(\cos(g(\text{caption}_j), v_c)/\tau_{\text{text}}\big)$.
-2. **Bridging.** With the teacher's top-3 caption weights $q_{uj}$, image $u$ gets $r_{uc}=\sum_j q_{uj}a_{jc}$. Differently worded captions about the same scene pool their evidence; vague ones stay flat.
-3. **Partial balancing + hard labels.** Unbalanced Sinkhorn over *all* A images: $Q_{uc}\propto r_{uc}^{1/\varepsilon_b}\alpha_c$, rows sum to 1, class masses rescaled each iteration by $(\pi_c/\text{mass}_c)^{\kappa}$ ($\kappa=1$: match prior; $\kappa=0$: none). Prior $\pi$: uniform or mean $a_{jc}$ over B-train captions (label-free). Then $\hat y_u=\arg\max_c Q_{uc}$.
-4. **Training** on the baseline's selected images $\mathcal U_{\text{sel}}$, with the frozen class prompts as classifier:
+1. **Caption→class table** (once). Class prompts $`v_c = g(\text{"an aerial photo of } c\text{."})`$; each bank caption gets $`a_{jc}=\mathrm{softmax}_c\big(\cos(g(\text{caption}_j), v_c)/\tau_{\text{text}}\big)`$.
+2. **Bridging.** With the teacher's top-3 caption weights $`q_{uj}`$, image $`u`$ gets $`r_{uc}=\sum_j q_{uj}a_{jc}`$. Differently worded captions about the same scene pool their evidence; vague ones stay flat.
+3. **Partial balancing + hard labels.** Unbalanced Sinkhorn over *all* A images: $`Q_{uc}\propto r_{uc}^{1/\varepsilon_b}\alpha_c`$, rows sum to 1, class masses rescaled each iteration by $`(\pi_c/\text{mass}_c)^{\kappa}`$ ($`\kappa=1`$: match prior; $`\kappa=0`$: none). Prior $`\pi`$: uniform or mean $`a_{jc}`$ over B-train captions (label-free). Then $`\hat y_u=\arg\max_c Q_{uc}`$.
+4. **Training** on the baseline's selected images $`\mathcal U_{\text{sel}}`$, with the frozen class prompts as classifier:
 
-$$\mathcal L_{\text{bridge}} = -\tfrac{1}{|\mathcal U_{\text{sel}}|}\textstyle\sum_{u\in\mathcal U_{\text{sel}}}\log\mathrm{softmax}_c\big(s\cos(\tilde z_u, v_c)\big)_{\hat y_u},\qquad \mathcal L=\mathcal L_{\text{con}}+\lambda_{\text{pcap}}\mathcal L_{\text{pcap}}+\lambda_{\text{bridge}}\mathcal L_{\text{bridge}}$$
+```math
+\mathcal L_{\text{bridge}} = -\tfrac{1}{|\mathcal U_{\text{sel}}|}\sum_{u\in\mathcal U_{\text{sel}}}\log\mathrm{softmax}_c\big(s\cos(\tilde z_u, v_c)\big)_{\hat y_u},\qquad \mathcal L=\mathcal L_{\text{con}}+\lambda_{\text{pcap}}\mathcal L_{\text{pcap}}+\lambda_{\text{bridge}}\mathcal L_{\text{bridge}}
+```
 
-$\lambda_{\text{bridge}}$ ramps from 0 over the first 20% of training.
+$`\lambda_{\text{bridge}}`$ ramps from 0 over the first 20% of training.
 
 **Design choices.** Balancing uses all of A because the confident subset is skewed to easy classes. Hard labels because ROSE showed soft targets with relabelling collapse. Partial balancing because the true class prior is unknown. Training prompts differ from the evaluation prompt ("A satellite image of {}.") to avoid fitting its wording.
 
@@ -76,7 +78,7 @@ Conclusion: —
 | Supervised | — | — | — | — | — |
 | Semi-supervised | — | — | — | — | — |
 | **Ours** | — | — | — | — | — |
-| Ours, no balancing ($\kappa=0$) | — | — | — | — | — |
+| Ours, no balancing ($`\kappa=0`$) | — | — | — | — | — |
 | Ours, image-derived labels | — | — | — | — | — |
 | Ours, soft targets | — | — | — | — | — |
 | Ours, other prior | — | — | — | — | — |
@@ -86,7 +88,7 @@ Conclusion: —
 
 ### 4.3 Sensitivity (held-out B, 3 seeds; cls. acc / mean R@1)
 
-| $\lambda_{\text{bridge}}$ 0.25 / 0.5 / 1 | $\kappa$ 0 / 0.5 / 1 | $\varepsilon_b$ 0.5 / 1 | $\pi$ uniform / caption |
+| $`\lambda_{\text{bridge}}`$ 0.25 / 0.5 / 1 | $`\kappa`$ 0 / 0.5 / 1 | $`\varepsilon_b`$ 0.5 / 1 | $`\pi`$ uniform / caption |
 | --- | --- | --- | --- |
 | — | — | — | — |
 
@@ -109,4 +111,4 @@ Conclusion: —
 
 ## 7. Use of AI tools
 
-Method developed in discussion with Claude (Anthropic). All design decisions, data-usage interpretations and results are reviewed by the author.
+Method developed in discussion with Claude (Anthropic); implementation and experiments run with Claude Code following `docs/TASK.md`. All design decisions, data-usage interpretations and results are reviewed by the author.
