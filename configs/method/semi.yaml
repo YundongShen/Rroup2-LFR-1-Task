@@ -3,7 +3,7 @@
 # Defaults not given in the README are documented in docs/reproduction.md.
 name: semi
 cache_dir: runs/cache      # frozen CLIP features (gitignored)
-steps: 2000                # total optimiser steps; fixed from the fold-0 curve (docs/reproduction.md)
+steps: 500                 # total optimiser steps; fixed by the fold-0 curve rule (docs/reproduction.md §3)
 batch_b: 128               # B pairs per step
 batch_a: 128               # accepted A images per step
 lr: 1.0e-3                 # AdamW, cosine decay to 0 over `steps`
