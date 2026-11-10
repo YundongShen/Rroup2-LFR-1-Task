@@ -14,6 +14,7 @@ Losses
 """
 import copy
 import json
+import math
 import os
 
 import pandas as pd
@@ -22,7 +23,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from src.data import CAPTION_COLS, class_prompt_names, load_classes
-from src.evaluate import retrieval, zero_shot
+from src.evaluate import encode_texts, retrieval, zero_shot
 from src.features import FeatureCache
 
 
@@ -105,6 +106,68 @@ def pcap_loss(zu, tB, cand, w, scale):
     return -(w * logp.gather(1, cand)).sum(1).mean()
 
 
+# ----------------------------------------------------------------------------- balanced caption->class bridge
+def caption_class_matrix(t_cap, V, tau_text):
+    """a_jc = softmax_c(cos(t_j, v_c) / tau_text); t_cap [NJ,d], V [C,d] L2-normalised."""
+    return torch.softmax(t_cap @ V.T / tau_text, dim=1)
+
+
+def class_prior(kind, gamma, A_cap, slot_ids):
+    """pi from class-name text and B-train captions only (no labels).
+
+    uniform: 1/C; caption: mean of a_jc over all B-train caption slots (duplicates counted as they
+    occur); mix: (1 - gamma) * uniform + gamma * caption.
+    """
+    C = A_cap.shape[1]
+    uni = torch.full((C,), 1.0 / C, device=A_cap.device, dtype=A_cap.dtype)
+    cap = A_cap[slot_ids.reshape(-1)].mean(0)
+    if kind == "uniform":
+        return uni
+    if kind == "caption":
+        return cap
+    if kind == "mix":
+        return (1 - gamma) * uni + gamma * cap
+    raise ValueError(f"unknown bridge.prior {kind}")
+
+
+def bridge_r(cand, w, A_cap):
+    """r_uc = sum_j q_uj a_jc over the top-k pseudo-captions (q = method-2 weights)."""
+    return (w.unsqueeze(-1) * A_cap[cand]).sum(1)
+
+
+def unbalanced_sinkhorn(r, eps, prior, kappa, n_iter=500, tol=1e-10):
+    """Scaling-vector Sinkhorn (TASK.md §5): K = r^(1/eps), beta = 1;
+    repeat  a_u = 1 / sum_c K_uc beta_c ;  beta_c = (N pi_c / sum_u a_u K_uc)^kappa ;
+    Q = a K beta. Rows sum to 1 exactly; kappa = 0 -> row-normalised K, kappa = 1 -> column sums N pi.
+    kappa acts on the whole re-computed beta, never cumulatively on Q. Log domain, float64.
+    """
+    logK = torch.log(r.double().clamp_min(1e-300)) / eps
+    N, C = logK.shape
+    log_target = torch.log(N * prior.double().to(logK.device))
+    log_beta = torch.zeros(C, dtype=logK.dtype, device=logK.device)
+    for _ in range(n_iter):
+        log_a = -torch.logsumexp(logK + log_beta, dim=1)
+        new = kappa * (log_target - torch.logsumexp(log_a[:, None] + logK, dim=0))
+        done = (new - log_beta).abs().max() < tol
+        log_beta = new
+        if done:
+            break
+    log_a = -torch.logsumexp(logK + log_beta, dim=1)
+    return torch.exp(log_a[:, None] + logK + log_beta).to(r.dtype)
+
+
+def bridge_loss(zu, V, scale, yhat=None, Q=None):
+    """Hard: -mean log p_{u, yhat_u}; soft: -mean sum_c Q_uc log p_uc; p = softmax(s cos(z~_u, v_c))."""
+    logp = torch.log_softmax(scale * zu @ V.T, dim=1)
+    if Q is not None:
+        return -(Q * logp).sum(1).mean()
+    return -logp.gather(1, yhat[:, None]).mean()
+
+
+def entropy_rows(p):
+    return -(p * torch.log(p.clamp_min(1e-30))).sum(1)
+
+
 class _IndexStream:
     """Endless stream of shuffled indices in chunks of `bs` (reshuffled every pass)."""
 
@@ -154,6 +217,20 @@ class Semi:
         NA, NB = zA.shape[0], zB.shape[0]
         print(f"[fold {fold}] NA={NA} NB={NB} bank={len(bank)} scale={scale:.2f} pcap={m.pcap.enabled}")
 
+        # ---- balanced caption->class bridge: one-time preparation (no class labels used)
+        br = m.get("bridge")
+        use_bridge = br is not None and br.enabled
+        if use_bridge:
+            assert m.pcap.enabled, "bridge needs the method-2 pseudo-caption assignment (pcap.enabled=true)"
+            V = encode_texts(model, tokenizer, [br.template.format(n) for n in self.class_names], dev).to(dev)
+            A_cap = caption_class_matrix(tB, V, br.tau_text)                   # [NJ, C], cached for the fold
+            prior = class_prior(br.prior, br.gamma, A_cap, bank_id)
+            bridge_ramp = max(1, int(br.ramp * m.steps))
+            C = V.shape[0]
+            yhat = Q = prev_yhat = None
+            print(f"[fold {fold}] bridge source={br.source} prior={br.prior} kappa={br.kappa} eps_b={br.eps_b} "
+                  f"tau_text={br.tau_text} lambda={br['lambda']} target={br.target}")
+
         # ---- adapter, EMA teacher, optimiser
         student = Adapter(zA.shape[1], m.adapter.hidden, m.adapter.alpha).to(dev)
         teacher = copy.deepcopy(student).requires_grad_(False)
@@ -190,6 +267,25 @@ class Semi:
                                "top1_changed": None if prev_top1 is None
                                else (top1 != prev_top1).float().mean().item()})
                 prev_top1 = top1
+                if use_bridge:
+                    with torch.no_grad():
+                        if br.source == "caption":
+                            r = bridge_r(cand, w, A_cap)
+                        elif br.source == "image":                          # control: teacher image-class sims
+                            r = torch.softmax(zA_t @ V.T / br.tau_text, dim=1)
+                        else:
+                            raise ValueError(f"unknown bridge.source {br.source}")
+                        Q = unbalanced_sinkhorn(r, br.eps_b, prior, br.kappa, br.sinkhorn_iters)
+                        yhat = Q.argmax(1)
+                    epochs[-1].update({
+                        "bridge_r_entropy": entropy_rows(r).mean().item(),
+                        "bridge_r_entropy_max": math.log(C),
+                        "bridge_hist_all": torch.bincount(yhat, minlength=C).tolist(),
+                        "bridge_hist_sel": torch.bincount(yhat[keep], minlength=C).tolist(),
+                        "bridge_colsum_tv_to_prior": 0.5 * (Q.sum(0) / NA - prior).abs().sum().item(),
+                        "bridge_changed": None if prev_yhat is None
+                        else (yhat != prev_yhat).float().mean().item()})
+                    prev_yhat = yhat
                 a_queue = keep[torch.randperm(len(keep), generator=gen).to(dev)]
 
             # B contrastive batch
@@ -207,6 +303,12 @@ class Semi:
                 lam = m.pcap["lambda"] * min(1.0, step / ramp_steps)
                 loss = loss + lam * l_p
                 rec.update(l_pcap=l_p.item(), lam_pcap=lam)
+                if use_bridge:
+                    l_b = (bridge_loss(zu, V, scale, Q=Q[u]) if br.target == "soft"
+                           else bridge_loss(zu, V, scale, yhat=yhat[u]))
+                    lam_b = br["lambda"] * min(1.0, step / bridge_ramp)
+                    loss = loss + lam_b * l_b
+                    rec.update(l_bridge=l_b.item(), lam_bridge=lam_b)
 
             opt.zero_grad(set_to_none=True)
             loss.backward()

@@ -21,3 +21,16 @@ pcap:
   tau: 0.1
   coverage: 0.5
 monitor_every: 0           # >0: log B-val mean R@1 (cached features) every n steps
+bridge:                    # balanced caption->class bridge (docs/TASK.md §5); off = method 2 bit-for-bit
+  enabled: false
+  source: caption          # caption (main) | image (control: teacher image-class similarity instead of r)
+  prior: uniform           # uniform | caption | mix  (mix = (1 - gamma) * uniform + gamma * caption)
+  gamma: 0.5
+  kappa: 1.0               # 1 = fully balanced, 0 = unbalanced
+  eps_b: 1.0               # K = r^(1/eps_b)
+  tau_text: 0.01           # caption->class softmax temperature
+  lambda: 0.5              # target weight, linear ramp from 0 over the first `ramp` of steps
+  ramp: 0.2
+  target: hard             # hard (argmax Q) | soft (Q)
+  template: "an aerial photo of {}."   # training template, distinct from the evaluation template
+  sinkhorn_iters: 500
