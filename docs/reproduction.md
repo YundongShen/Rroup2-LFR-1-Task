@@ -63,12 +63,66 @@ fold 0 within 100–200 steps, but the EMA teacher (momentum 0.999, time constan
 still near zero-shot at step 300, so short runs would make the pseudo-captions essentially
 zero-shot assignments.
 
-(results to be filled)
+**Result** (`python scripts/steps_table.py`, fold 0, seed 0; final values, %):
+
+| T | method 2 mean R@1 | method 2 acc | method 1 mean R@1 | method 1 acc | method 2 EMA teacher mean R@1 (end) |
+|---|---|---|---|---|---|
+| 500 | 25.02 | 81.28 | 23.84 | 83.11 | 17.90 |
+| 1000 | 22.74 | 79.45 | 22.10 | 78.08 | 21.23 |
+| 2000 | 20.78 | 75.80 | 19.36 | 75.34 | 23.93 |
+| 4000 | 19.63 | 77.63 | 18.54 | 69.86 | 19.86 |
+| 8000 | 17.99 | 75.80 | 17.08 | 71.23 | 17.99 |
+
+Rule → **T = 500** (≈14 pseudo-caption epochs of 35 steps). The curves do not show slow convergence
+but overfitting: the student peaks at ≈100–300 steps and then declines while L_con on B-train goes
+to ≈0.07 (T = 8000); method 1 behaves the same. T = 500 is the lower edge of the grid; shorter runs
+were not tried, because the rule was fixed in advance and T is not a tuned hyperparameter here.
+Consequence: with EMA 0.999 the teacher moves little within 500 steps (17.9 mean R@1 at the end vs
+14.3 zero-shot), so pseudo-captions are mostly assigned from near-frozen CLIP features.
 
 ## 4. Results on B held-out folds (`data=kfold5`, seeds 0, 1, 2)
 
-(to be filled)
+`python scripts/phase1_table.py` (runs: `runs/p1/{semi,sup}_s{0,1,2}`, job `scripts/slurm/phase1_main.bash`).
+Each seed's value is the mean over the 5 held-out folds; mean ± std over the 3 seeds (%).
+
+| method | acc | per-class acc | mean R@1 | I→T R@1 | I→T R@5 | I→T R@10 | T→I R@1 | T→I R@5 | T→I R@10 |
+|---|---|---|---|---|---|---|---|---|---|
+| Zero-shot | 63.62 | 63.50 | 13.76 | 13.71 | 31.08 | 46.16 | 13.80 | 49.25 | 66.14 |
+| Method 1 (supervised) | 82.97 ± 0.31 | 84.66 ± 0.33 | 22.72 ± 0.12 | 23.61 ± 0.19 | 51.80 ± 0.86 | 71.09 ± 0.86 | 21.83 ± 0.42 | 68.33 ± 0.30 | 86.02 ± 0.08 |
+| Method 2 (semi) | 83.43 ± 0.23 | 84.59 ± 0.25 | 23.84 ± 0.12 | 25.71 ± 0.26 | 49.67 ± 0.55 | 70.75 ± 0.20 | 21.97 ± 0.08 | 67.90 ± 0.09 | 86.50 ± 0.32 |
+
+Comparison with the README (coverage 0.5, top-3, held-out B protocol, 3 seeds):
+
+| | README | ours |
+|---|---|---|
+| method 2 mean R@1 | 22.53 ± 0.69 | 23.84 ± 0.12 (+1.31) |
+| method 2 I→T R@5 | 53.27 ± 1.14 | 49.67 ± 0.55 |
+| method 2 T→I R@5 | 64.60 ± 2.48 | 67.90 ± 0.09 |
+
+**Acceptance check**
+- Method 2 mean R@1 within ≈2 points of 22.53: **yes** (+1.31).
+- Both methods clearly above zero-shot in classification: **yes** (83.0 / 83.4 vs 63.6).
+- Method 2 retrieval above method 1: **yes on mean R@1** (+1.12, seed std 0.12) and on I→T R@1
+  (+2.10); **not on R@5**: I→T R@5 −2.13, T→I R@5 −0.43; R@10 mixed (I→T −0.34, T→I +0.48).
+  See section 5.
+
+**Cached vs standard evaluation path.** Over 40 fold runs (phase 1 main + step curve) the metrics from
+cached features and from the wrapped `model.encode_image` + `evaluate` path are identical in 35;
+in 5 a single image→text rank moves by one position (|Δ| = 1/218 or 1/219 on one I→T R@k), never
+classification. Cause: duplicate caption texts have identical text features, so similarity ties are
+exact and their order depends on floating-point noise between the cached features (batch 256) and
+the evaluation pass (batch 128).
 
 ## 5. Differences from the README
 
-(to be filled)
+1. **R@5 trend.** In the README test table method 2 is above method 1 on both R@5 directions. On the
+   B held-out folds method 2 gains at R@1 (mostly I→T R@1) but is lower at I→T R@5 (−2.1) and
+   slightly lower at T→I R@5 (−0.4). The README sweep reports I→T R@5 53.27 for method 2; ours is 49.67.
+2. **Training length.** The README does not state it; the fixed rule gives T = 500 steps, at which
+   the EMA teacher is still close to zero-shot. Longer training overfits B-train with these
+   defaults (no augmentation on cached features).
+3. **Classification gain from captions.** Method 2 − method 1 = +0.46 accuracy (−0.07 per-class),
+   versus +0.91 on C in the README; both small, consistent with the research question.
+4. **Absolute accuracy level.** Adapted accuracy on B held-out folds (≈83 %) is far above the README's
+   C numbers (73.8 / 74.7), while zero-shot agrees (63.6 vs 63.8). The README C models may be trained
+   differently (e.g. on all of B); we cannot check this without touching C and do not interpret it.
