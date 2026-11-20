@@ -1,0 +1,6 @@
+# Randomly initialised ViT-B-32 with no pretrained weights. Only for smoke tests
+# of the pipeline on a machine without the OpenCLIP weights. Numbers are meaningless.
+name: debug_random
+arch: ViT-B-32
+pretrained: null
+precision: fp32

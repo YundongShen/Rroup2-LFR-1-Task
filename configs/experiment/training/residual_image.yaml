@@ -1,0 +1,6 @@
+defaults:
+  - residual
+  - _self_
+
+name: residual_image
+adapters: image

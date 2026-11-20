@@ -1,0 +1,17 @@
+# Soft caption pseudo-supervision on Split A: L = L_con (B-train) + L_pcap (accepted A images).
+# Each epoch the EMA teacher retrieves, for every A image, its top-5 B-train captions by
+# R = 0.2 z(S_IT) + 0.8 z(S_II); the 20 % of A with the highest R_max take part, with
+# softmax(R / 0.3) weights. The hard pseudo-label classifier (cls.pseudo) is off here.
+#   training.losses.cls.enabled=true                 add the hard pseudo-label CE back (contrast)
+#   training.losses.pseudo_cap.tau_p=inf             uniform weights over the 5 candidates
+#   training.losses.pseudo_cap.coverage=0.5          accept more of A
+#   training.losses.pseudo_cap.lam=0,0.2,0.5         fusion sweep
+defaults:
+  - semi
+  - _self_
+name: semi_pseudo_cap
+losses:
+  cls:
+    enabled: false
+  pseudo_cap:
+    enabled: true

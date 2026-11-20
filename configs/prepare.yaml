@@ -5,7 +5,7 @@ defaults:
   - override hydra/hydra_logging: none
   - _self_
 
-raw_dir: data/raw
+raw_dir: data/raw/Module_1
 images_dir: ${raw_dir}/RSICD_images
 captions_json: ${raw_dir}/dataset_rsicd.json
 classes_dir: ${raw_dir}/txtclasses_rsicd

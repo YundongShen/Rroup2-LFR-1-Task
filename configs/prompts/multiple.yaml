@@ -1,5 +1,5 @@
 # Prompt ensembling: class embedding = mean over templates.
-name: ensemble
+name: multiple
 templates: # templates referred from the paper in remote sensing domain.
   - "A satellite image of {}."
   - "an aerial image of {}."

@@ -1,0 +1,3 @@
+# Text-to-image retrieval. One R@k is reported for each entry in ks.
+name: t2i
+ks: [1, 5, 10]

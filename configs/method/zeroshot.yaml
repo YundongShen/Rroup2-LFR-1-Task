@@ -1,2 +1,0 @@
-# No training: evaluate the pretrained model as-is.
-name: zeroshot

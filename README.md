@@ -12,8 +12,8 @@ Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B
 | Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
 | --------------- | :----------------: | :--------------: | :--------------: |
 | Zero-shot       | 63.76              | 17.84            | 21.23            |
-| Supervised      | 73.82 ± 0.27       | 20.22 ± 0.62     | 21.62 ± 0.25     |
-| Semi-supervised | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     |
+| Residual Adapter (B only)      | 73.82 ± 0.27       | 20.22 ± 0.62     | 21.62 ± 0.25     |
+| Pseudo Captioning (A + B) | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     |
 
 Supervised trains the adapter on B with the contrastive loss only. Semi-supervised adds the pseudo-caption loss on A.
 
@@ -87,12 +87,12 @@ Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean 
 **Coverage** (top-K = 3)
 <div align="center">
 
-| coverage | mean R@1     | Image → Text R@5 | Text → Image R@5 |
-| :------: | :----------: | :--------------: | :--------------: |
-| 0.2      | 20.82 ± 0.31 | 51.75 ± 1.51     | 64.51 ± 1.06     |
-| 0.5      | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
-| 0.7      | 21.48 ± 0.21 | 53.27 ± 3.01     | 64.54 ± 2.96     |
-| 0.9      | 22.86 ± 0.41 | 51.60 ± 2.91     | 65.75 ± 2.59     |
+| coverage |  Image → Text R@5 | Text → Image R@5 |
+| :------: |  :--------------: | :--------------: |
+| 0.2      |  51.75 ± 1.51     | 64.51 ± 1.06     |
+| 0.5      |  53.27 ± 1.14     | 64.60 ± 2.48     |
+| 0.7      |  53.27 ± 3.01     | 64.54 ± 2.96     |
+| 0.9      |  51.60 ± 2.91     | 65.75 ± 2.59     |
 
 </div>
 
@@ -101,11 +101,11 @@ Held-out protocol: train on A plus 4 folds of B, evaluate on the 5th fold. Mean 
 **Top-K** (coverage = 0.5)
 <div align="center">
 
-| top-$k$ | mean R@1     | Image → Text R@5 | Text → Image R@5 |
-| :-----: | :----------: | :--------------: | :--------------: |
-| 1       | 21.32 ± 0.47 | 51.75 ± 1.14     | 63.74 ± 1.37     |
-| 3       | 22.53 ± 0.69 | 53.27 ± 1.14     | 64.60 ± 2.48     |
-| 5       | 22.42 ± 0.60 | 50.23 ± 2.33     | 65.33 ± 3.25     |
+| top-$k$ |  Image → Text R@5 | Text → Image R@5 |
+| :-----: |  :--------------: | :--------------: |
+| 1       |  51.75 ± 1.14     | 63.74 ± 1.37     |
+| 3       |  53.27 ± 1.14     | 64.60 ± 2.48     |
+| 5       |  50.23 ± 2.33     | 65.33 ± 3.25     |
 
 </div>
 

@@ -1,0 +1,10 @@
+# Stage 2: L_con + L_anc (anchor on B-train only, Split A still unused).
+#   training.losses.anc.kind=l2|kl   training.losses.anc.weight=...
+defaults:
+  - semi
+  - _self_
+name: semi_stage2_anc
+losses:
+  cls: {enabled: false}
+  cons: {enabled: false}
+  anc: {enabled: true, apply_to: labeled}

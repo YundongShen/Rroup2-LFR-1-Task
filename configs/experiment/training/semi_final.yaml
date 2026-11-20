@@ -1,0 +1,93 @@
+# Semi-supervised residual adapter on frozen OpenCLIP features (docs/semi_supervised_adapter.md).
+#   L = L_con + lambda_cls L_cls + lambda_cons L_cons + lambda_anc L_anc + lambda_pcap L_pcap
+# Trains only on cached features: run scripts/cache_features.py (eval cache + augmented
+# views) for the chosen model first. Every loss has `enabled` and `weight`; the stage
+# configs in this directory only flip those. Overrides for the ablations, for example
+#   training.losses.cons.target=clip        consistency to the frozen CLIP instead of the EMA teacher
+#   training.losses.anc.kind=l2             feature-space anchor instead of the prediction-space KL
+#   training.losses.cls.pseudo.strategy=global
+#   training.unlabeled.view=dropout         feature-level view instead of the cached pixel views
+#   training.losses.cls.use_b_labels=false  pseudo-labels only (pending the course's answer on B labels)
+name: semi
+method: semi
+adapters: image           # image | text | both ; the method trains the image side only
+hidden_dim: 128
+alpha: 0.2                # residual scale, z~ = z + alpha * h(z)
+beta: 0.2                 # text side, only with adapters=text|both
+
+losses:
+  con:                    # supervised image-text contrastive, B-train
+    enabled: true
+    weight: 1.0
+    learn_logit_scale: false
+  cls:                    # cross-entropy over the 30 prompt prototypes
+    enabled: false
+    weight: 1.0
+    use_b_labels: false   # IMPORTANT: B-train class labels. The task sheet lists class labels under C only, so
+                          # this stays off; true is the upper-bound experiment, not a legal configuration.
+    caption_labels:       # weak class labels for B-train read off its captions (allowed data). Measured
+      enabled: false      # IMPORTANT: at 79-87 % precision with whole classes missing; hurt by ~10 points, so off.
+                          # argmax_c of the mean over the 5 captions of softmax(s * z_T . P_c)
+      threshold: 0.5      # adopt an image only when that confidence passes; precision is logged vs. the
+                          # true labels for the report (diagnostic only)
+    pseudo:               # Split A pseudo-labels
+      enabled: true
+      source: teacher     # clip | teacher ; never the student
+      strategy: per_class_adaptive   # global | per_class_adaptive | class_balanced
+      threshold: 0.9
+      min_per_class: 0
+      input: original         # view | original : the student input that receives the pseudo-label loss
+  pseudo_cap:             # soft caption pseudo-supervision on Split A (src/experiment/pseudo_caption.py)
+    enabled: true        # see training=semi_pseudo_cap; validated offline by scripts/caption_bank_eval.py
+    weight: 1.0
+    source: teacher       # clip | teacher : who scores the B-train caption bank; never the student
+    lam: 0.2              # R = lam * z(S_IT) + (1 - lam) * z(S_II), z-scored per image over the whole bank
+    top_k: 3              # candidates per image
+    tau_p: 0.1            # softmax temperature on R for the candidate weights; inf = uniform
+    coverage: 0.5         # fraction of Split A accepted each epoch, the images with the highest R_max
+    input: original       # original | view : the student input that receives the loss
+    rampup_fraction: 0.2  # weight rises linearly from 0 over this fraction of the post-warmup steps
+  cons:                   # image-image contrastive on Split A (symmetric InfoNCE, two weak views)
+    enabled: false
+    weight: 0.5           # start here; sweep 0.1-0.5.  Do NOT use 3.0 (overwhelms L_con)
+    rampup_fraction: 0.2  # weight rises linearly from 0 over this fraction of all steps
+    # Removed: target/space/kind/temperature — no longer needed (no teacher, no class logits)
+  anc:                    # CLIP anchor
+    enabled: true         # kl 0.05: +1 pt mean_r1 over con alone (paired, seed 0); keep on
+    weight: 0.05
+    kind: kl              # l2 (feature space) | kl (prediction space, KL(p_clip || p_student))
+    apply_to: both        # labeled | unlabeled | both
+
+ema:
+  momentum: 0.99
+
+unlabeled: # split A
+  batch_size: 256
+  warmup_fraction: 0.0    # fraction of all steps trained on B only before A (pseudo-labels, consistency) enters
+  view: pixel             # pixel (cached augmented views) | dropout | noise | none
+  dropout_p: 0.1
+  noise_sigma: 0.02
+  # A-branch pseudo-label CE only. fixed: the single class prototype from prompts=single (E1).
+  # random: one template from configs/prompts/multiple.yaml per A image, shared by all 30 classes,
+  # resampled every step (E2-A). Teacher pseudo-labels, B-val, and final eval stay on prompts=single.
+  class_prompt_mode: fixed   # fixed | random
+
+batch_size: 256           # labeled batch; B-train is about 875 images
+lr: 1.0e-3
+min_lr: 0.0
+weight_decay: 0.01
+max_epochs: 300
+warmup_epochs: 15
+# Console epoch summary every N epochs (CSV history is still written every epoch).
+# Always prints epoch 1 and the final epoch.
+log_every_n_epochs: 10
+
+# Model selection: a stratified val_fraction of the training part of B is held out
+# (B-val). best = highest val/<selection_metric>; that checkpoint is restored before
+# the fold is evaluated. val_fraction=0 trains on all of it and keeps the last epoch.
+val_fraction: 0.0 #0.2
+# Model selection on B-val. mean_r1 = (i2t R@1 + t2i R@1) / 2 uses captions only; cls_acc and
+# mean_per_class_acc need B's class labels, which the task sheet reserves for C.
+selection_metric: mean_r1
+early_stopping: false
+patience: 10

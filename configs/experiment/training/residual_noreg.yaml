@@ -1,0 +1,6 @@
+defaults:
+  - residual
+  - _self_
+
+name: residual_noreg
+lambda_reg: 0.0

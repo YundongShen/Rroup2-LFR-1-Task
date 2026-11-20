@@ -1,0 +1,2 @@
+# Image classification. Reports acc and mean_per_class_acc.
+name: classification

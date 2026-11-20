@@ -1,0 +1,2 @@
+# Train on all of A and B. Evaluate once on C.
+name: full

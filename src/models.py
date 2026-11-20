@@ -11,7 +11,17 @@ def get_device(name="auto"):
 
 
 def build_model(model_cfg, device):
-    """Returns (model, train_transform, eval_transform, tokenizer)."""
+    """
+    Returns (model, train_transform, eval_transform, tokenizer).
+    Parameters:
+    - model_cfg: the configuration for the model
+    - device: the device to use for the model
+    Returns:
+    - model: the model
+    - train_tf: the transform to use for training
+    - eval_tf: the transform to use for evaluation
+    - tokenizer: the tokenizer to tokenize the text inputs
+    """
     model, train_tf, eval_tf = open_clip.create_model_and_transforms(
         model_cfg.arch, pretrained=model_cfg.pretrained, precision=model_cfg.precision, device=device)
     return model, train_tf, eval_tf, open_clip.get_tokenizer(model_cfg.arch)

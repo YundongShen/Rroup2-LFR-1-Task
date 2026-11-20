@@ -5,7 +5,6 @@ import re
 import pandas as pd
 import torch
 from PIL import Image
-from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from torch.utils.data import Dataset
 
 CAPTION_COLS = [f"caption_{k}" for k in range(5)]
@@ -31,24 +30,6 @@ def load_test(manifest_dir):
     return pd.read_csv(os.path.join(manifest_dir, "C_test.csv"))
 
 
-def b_folds(manifest_dir, b_split):
-    """Divide split B into [(train_df, val_df), ...] according to the `data.b_split` config."""
-    df = pd.read_csv(os.path.join(manifest_dir, "B_labeled.csv"))
-    y = df["label"].values if b_split.stratify else None
-    if b_split.mode == "holdout":
-        tr, va = train_test_split(df.index.values, test_size=b_split.val_frac,
-                                  random_state=b_split.seed, stratify=y)
-        splits = [(tr, va)]
-    elif b_split.mode == "kfold":
-        kf = (StratifiedKFold if b_split.stratify else KFold)(n_splits=b_split.k, shuffle=True,
-                                                               random_state=b_split.seed)
-        splits = list(kf.split(df.index.values, y))
-    else:
-        raise ValueError(f"unknown b_split.mode: {b_split.mode}")
-    return [(df.iloc[sorted(tr)].reset_index(drop=True), df.iloc[sorted(va)].reset_index(drop=True))
-            for tr, va in splits]
-
-
 class RSICDImages(Dataset):
     """Images (+ label if present) from a manifest DataFrame."""
 
@@ -67,19 +48,29 @@ class RSICDImages(Dataset):
 
 
 class RSICDPairs(Dataset):
-    """Image-caption pairs from split B; samples one of the 5 captions per call."""
+    """One image and one of its five captions.
 
-    def __init__(self, df, transform, tokenizer, random_caption=True):
+    Training samples a caption on each access. A fixed caption_index uses that
+    caption for every image, so a validation pass stays a one-to-one batch.
+    """
+
+    def __init__(self, df, transform, tokenizer, random_caption=True, caption_index=None):
         self.df = df
         self.transform = transform
         self.tokenizer = tokenizer
         self.random_caption = random_caption
+        self.caption_index = caption_index
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, i):
         r = self.df.iloc[i]
-        k = torch.randint(5, ()).item() if self.random_caption else 0
+        if self.caption_index is not None:
+            k = self.caption_index
+        elif self.random_caption:
+            k = torch.randint(5, ()).item()
+        else:
+            k = 0
         img = self.transform(Image.open(r.filepath).convert("RGB"))
         return img, self.tokenizer([r[CAPTION_COLS[k]]])[0]

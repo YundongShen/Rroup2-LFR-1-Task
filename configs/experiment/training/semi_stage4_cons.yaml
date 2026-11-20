@@ -1,0 +1,15 @@
+# Stage 4: only L_cons (image-image InfoNCE on Split A, two weak views, symmetric).
+# The weak-augmented cache must be built first:
+#   python scripts/cache_features.py --weak-views 4
+# Ablation sweeps:
+#   training.losses.cons.weight=0.1,0.2,0.3,0.5   lambda sweep
+#   training.losses.cons.enabled=false             baseline without A contrastive
+defaults:
+  - semi
+  - _self_
+name: semi_stage4_cons
+losses:
+  con: {enabled: true}
+  cons: {enabled: false}
+
+

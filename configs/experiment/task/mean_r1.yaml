@@ -1,0 +1,6 @@
+# Both retrieval directions on the same candidate pool as i2t and t2i.
+# For every k in ks: mean_r{k} = (i2t_r{k} + t2i_r{k}) / 2, plus the two R@k values;
+# mean_recall averages mean_r{k} over ks. mean_r1 is always reported and stays the
+# headline metric, so `ks: [1]` reproduces the old output exactly.
+name: mean_r1
+ks: [1, 5]

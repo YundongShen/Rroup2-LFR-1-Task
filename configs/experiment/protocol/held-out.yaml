@@ -1,0 +1,7 @@
+# One fold of the same A+B division as kfold.
+# Matching k, stratify, seed, and fold reproduces that round of a kfold run.
+name: held-out
+k: 5
+fold: 0
+stratify: true
+seed: ${seed}          # same value as the top-level experiment seed

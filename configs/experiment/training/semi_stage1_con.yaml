@@ -1,0 +1,9 @@
+# Stage 1: adapter + L_con only, B-train only. Split A is not read.
+defaults:
+  - semi
+  - _self_
+name: semi_stage1_con
+losses:
+  cls: {enabled: false}
+  cons: {enabled: false}
+  anc: {enabled: false}

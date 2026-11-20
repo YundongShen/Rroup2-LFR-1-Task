@@ -1,5 +1,5 @@
 # Course default: single template from the task slides.
-name: course
+name: single
 templates:
   - "A satellite image of {}."
 # Optional per-class name overrides (folder name -> prompt text).

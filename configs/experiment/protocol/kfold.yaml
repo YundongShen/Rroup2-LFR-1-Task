@@ -1,0 +1,6 @@
+# A is used in every training split. B is split into k folds:
+# each round trains on A + 4 folds and evaluates on the held-out fold.
+name: kfold
+k: 5
+stratify: true
+seed: ${seed}          # same value as the top-level experiment seed

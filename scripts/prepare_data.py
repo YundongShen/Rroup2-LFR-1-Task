@@ -6,8 +6,8 @@ Outputs (cfg.out_dir):
   C_test.csv        split C (orig test):  filepath, label, caption_0..4 -- final evaluation only
   classes.json      class index -> folder name
 
-The train/val division *inside* B is not done here; it is generated per run
-from the `data` config (see src/data.py).
+The division of B into folds, and the choice between that protocol and evaluating on C,
+is made later by the experiment config (configs/experiment/protocol).
 
 Usage: python scripts/prepare_data.py [raw_dir=...] [out_dir=...]
 """

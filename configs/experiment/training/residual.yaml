@@ -1,0 +1,31 @@
+# Supervised residual adapters on frozen OpenCLIP. One run uses one lambda.
+# Ablations are separate configs in this directory, or overrides such as
+#   training.adapters=image
+#   training.lambda_reg=0
+name: residual
+adapters: both          # both | image | text
+hidden_dim: 256
+alpha: 0.2              # fixed image residual scale
+beta: 0.2               # fixed text residual scale
+lambda_reg: 1.0
+
+batch_size: 64          # one image per row; the last incomplete batch is kept
+lr: 1.0e-4
+min_lr: 0.0             # cosine ends here
+weight_decay: 0.01      # AdamW, applied to every adapter parameter including biases
+max_epochs: 30
+warmup_epochs: 1        # linear warmup, then cosine, both applied per optimizer step
+# Console epoch summary every N epochs (CSV history is still written every epoch).
+# Always prints epoch 1 and the final epoch.
+log_every_n_epochs: 1
+# false: train on the cached eval-transform features from scripts/cache_features.py.
+# true: OpenCLIP random crop. Those image features change every step and are not cached.
+use_train_transform: true
+
+# Off: gradients use every image in the four training folds, for all max_epochs.
+# On: hold out a stratified val_fraction for val/loss_total. Stop after `patience`
+# epochs without an improvement and restore that checkpoint. The cosine schedule
+# stays laid out over max_epochs either way.
+early_stopping: true
+val_fraction: 0.2
+patience: 5

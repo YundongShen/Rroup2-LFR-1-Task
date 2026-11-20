@@ -1,0 +1,13 @@
+# Stage 3: + L_cls with caption-derived weak labels on B-train and Split A pseudo-labels from the frozen CLIP.
+# No consistency loss yet, so there is no EMA teacher; the anchor now also covers A.
+#   training.losses.cls.caption_labels.enabled=false   Split A pseudo-labels only
+#   training.losses.cls.use_b_labels=true training.losses.cls.caption_labels.enabled=false   upper bound with B labels
+#   training.losses.cls.pseudo.strategy=global|per_class_adaptive|class_balanced
+defaults:
+  - semi
+  - _self_
+name: semi_stage3_cls
+losses:
+  cons: {enabled: false}
+  cls:
+    pseudo: {source: clip}

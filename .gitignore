@@ -1,5 +1,7 @@
-data/raw/
+/data/
 __pycache__/
 *.pt
 runs/
 .DS_Store
+docs/
+tests/

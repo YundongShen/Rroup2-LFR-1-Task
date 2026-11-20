@@ -1,0 +1,42 @@
+# One experiment. Edit the defaults to choose it.
+#   python -m src.experiment.run
+defaults:
+  - model: vit_b32_laion2b       # configs/model/<name>.yaml
+  - prompts: single              # configs/prompts/<name>.yaml ; used when task=classification
+  - task: mean_r1         # configs/experiment/task/<name>.yaml
+  - protocol: full             # configs/experiment/protocol/<name>.yaml
+  - training: semi                   # configs/experiment/training/<name>.yaml
+  - _self_
+
+manifest_dir: data/splits
+seed: 0                 # one integer; sweep seeds on the command line: -m seed=0,1,2
+device: auto # auto (cuda, then mps, then cpu) | cuda | mps | cpu
+batch_size: 256 # evaluation batch size; training uses training.batch_size
+num_workers: 4 # number of workers for data loading
+# Frozen CLIP features from scripts/cache_features.py. A missing file means encode during the run.
+feature_cache: data/features/${model.name}.pt
+# K augmented views per Split A image, from scripts/cache_features.py --aug-views K.
+# Read only by training=semi with training.unlabeled.view=pixel.
+aug_feature_cache: data/features/${model.name}_aug.pt
+# K weakly-augmented views per Split A image (scale 0.9-1.0, hflip only), from
+# scripts/cache_features.py --weak-views K.  Read by losses.cons when enabled.
+weak_aug_feature_cache: data/features/${model.name}_weak_aug.pt
+
+exp_name: ${task.name}_${protocol.name}_${model.name}_${prompts.name}_${training.name}
+
+hydra:
+  searchpath:
+    - file://${repo_root:}/configs
+  run:
+    dir: runs/${exp_name}/${now:%Y-%m-%d_%H-%M-%S}
+  sweep:
+    dir: runs/multirun/${now:%Y-%m-%d_%H-%M-%S}
+    subdir: ${hydra.job.num}_${exp_name}
+  job:
+    chdir: false
+
+
+# python -m src.experiment.run -m seed=0,1,2 protocol=kfold training=semi \
+#   training.losses.cls.enabled=false,true \
+#   training.unlabeled.warmup_fraction=0.6 \
+
