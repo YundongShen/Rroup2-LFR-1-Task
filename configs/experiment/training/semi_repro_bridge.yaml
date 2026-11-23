@@ -1,0 +1,30 @@
+# Reproduction of the baseline on shipeng/bridge (configs/method/semi.yaml there).
+# Steps: 500 on his side. Here steps = max_epochs * ceil(n_fit / batch_size):
+#   kfold5 (~875 B-train): 71 epochs * 7 = 497 steps   <- default below
+#   full   (1094 B):       override training.max_epochs=56 -> 56 * 9 = 504 steps
+defaults:
+  - semi_final
+  - _self_
+
+name: semi_repro_bridge
+hidden_dim: 512
+
+losses:
+  anc:
+    enabled: false        # no KL anchor on his side
+
+ema:
+  momentum: 0.999
+
+unlabeled:
+  batch_size: 256         # ~50 % accepted -> ~128 accepted A images per step, as his batch_a
+  view: none              # his features are un-augmented; avoids the aug-cache requirement
+
+batch_size: 128
+lr: 1.0e-3
+min_lr: 0.0
+weight_decay: 1.0e-4
+max_epochs: 71
+warmup_epochs: 0
+val_fraction: 0.0
+early_stopping: false

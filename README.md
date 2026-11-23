@@ -9,11 +9,17 @@ Through the whole pipeline, the usage of data follows the following protocol: 1.
 
 Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B/32 (LAION-2B), reported in form of mean ± std over 5 seeds (0, 1, 2, 3, 4). Zero-shot is deterministic, so it has no std.
 
-| Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
+<!-- | Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
 | --------------- | :----------------: | :--------------: | :--------------: |
 | Zero-shot       | 63.76              | 17.84            | 21.23            |
 | Residual Adapter (B only)      | 73.82 ± 0.27       | 20.22 ± 0.62     | 21.62 ± 0.25     |
-| Pseudo Captioning (A + B) | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     |
+| Pseudo Captioning (A + B) | 74.73 ± 0.25       | 22.71 ± 0.56     | 22.28 ± 0.33     | -->
+
+| Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
+| --------------- | :----------------: | :--------------: | :--------------: |
+| Zero-shot       | 63.76              | 17.84            | 21.23            |
+| Residual Adapter (B only)      |   79.01 ± 0.77     |   21.83 ± 0.41     | 24.61 ± 0.21     |
+| Pseudo Captioning (A + B) | 81.81 ± 0.18       | 23.97 ± 0.44     | 24.98 ± 0.40     |
 
 Supervised trains the adapter on B with the contrastive loss only. Semi-supervised adds the pseudo-caption loss on A.
 

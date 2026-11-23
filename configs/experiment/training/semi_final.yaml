@@ -31,14 +31,14 @@ losses:
       threshold: 0.5      # adopt an image only when that confidence passes; precision is logged vs. the
                           # true labels for the report (diagnostic only)
     pseudo:               # Split A pseudo-labels
-      enabled: true
+      enabled: false
       source: teacher     # clip | teacher ; never the student
       strategy: per_class_adaptive   # global | per_class_adaptive | class_balanced
       threshold: 0.9
       min_per_class: 0
       input: original         # view | original : the student input that receives the pseudo-label loss
   pseudo_cap:             # soft caption pseudo-supervision on Split A (src/experiment/pseudo_caption.py)
-    enabled: true        # see training=semi_pseudo_cap; validated offline by scripts/caption_bank_eval.py
+    enabled: false        # see training=semi_pseudo_cap; validated offline by scripts/caption_bank_eval.py
     weight: 1.0
     source: teacher       # clip | teacher : who scores the B-train caption bank; never the student
     lam: 0.2              # R = lam * z(S_IT) + (1 - lam) * z(S_II), z-scored per image over the whole bank
@@ -53,7 +53,7 @@ losses:
     rampup_fraction: 0.2  # weight rises linearly from 0 over this fraction of all steps
     # Removed: target/space/kind/temperature — no longer needed (no teacher, no class logits)
   anc:                    # CLIP anchor
-    enabled: true         # kl 0.05: +1 pt mean_r1 over con alone (paired, seed 0); keep on
+    enabled: false         # kl 0.05: +1 pt mean_r1 over con alone (paired, seed 0); keep on
     weight: 0.05
     kind: kl              # l2 (feature space) | kl (prediction space, KL(p_clip || p_student))
     apply_to: both        # labeled | unlabeled | both
