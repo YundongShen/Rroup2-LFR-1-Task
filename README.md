@@ -17,7 +17,7 @@ Trained on Split A (unlabeled) + Split B (captions), evaluated on Split C. ViT-B
 
 | Method          | Classification Acc | Image → Text R@5 | Text → Image R@5 |
 | --------------- | :----------------: | :--------------: | :--------------: |
-| Zero-shot       | 63.76              | 17.84            | 21.23            |
+| Zero-shot       | 62.76              | 17.84            | 21.23            |
 | Residual Adapter (B only)      |   79.01 ± 0.77     |   21.83 ± 0.41     | 24.61 ± 0.21     |
 | Pseudo Captioning (A + B) | 81.81 ± 0.18       | 23.97 ± 0.44     | 24.98 ± 0.40     |
 
